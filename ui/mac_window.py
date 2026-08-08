@@ -4,6 +4,8 @@
 Dock 跳、選單列換掉、視窗如果在別的桌面還會把整個桌面切過去。
 對常駐小工具來說這很擾人，所以這裡把它降級成 accessory，
 再把彈窗改成不搶焦點的浮動面板。
+
+對外介面由 ui/native_window.py 統一，這裡不要直接被 import。
 """
 
 from ctypes import c_void_p
@@ -25,6 +27,9 @@ except Exception:
 
 # NSWindowStyleMaskNonactivatingPanel —— 能收鍵盤但不會讓整個 App 變成前景
 NONACTIVATING_PANEL = 1 << 7
+
+# macOS 的陰影是 NSWindow 自己畫的（GPU 完成），所以視窗大小變了要叫它重算
+HAS_NATIVE_SHADOW = True
 
 
 def become_accessory():

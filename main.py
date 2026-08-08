@@ -9,9 +9,10 @@ from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 import pyperclip
 
-from core import hotkey, local_lookup, permission, settings
+from core import hotkey, local_lookup, permission, plat, settings
 from core.local_lookup import LocalPriceBook
-from ui import mac_window, popup as popup_mod, style
+from ui import native_window, popup as popup_mod, style
+from ui.diag_dialog import DiagDialog
 from ui.import_dialog import ImportDialog
 from ui.popup import PopupWindow
 
@@ -100,7 +101,7 @@ def main():
     base_font.setPointSize(style.BASE_SIZE)
     app.setFont(base_font)
     # 常駐小工具：不進 Dock、不進 ⌘Tab，叫出查詢視窗時不會把使用者的畫面切走
-    mac_window.become_accessory()
+    native_window.become_accessory()
 
     price_book = LocalPriceBook()
     popup = PopupWindow(
@@ -158,7 +159,7 @@ def main():
     load_signals.done.connect(on_loaded)
 
     def show_errors():
-        mac_window.activate_app()
+        native_window.activate_app()
         QMessageBox.warning(
             None, "載入 Price Book 時有問題",
             "\n".join(state.get("errors", [])) + "\n\n可以從選單列重新匯入。")
@@ -178,7 +179,7 @@ def main():
 
     def open_import():
         popup.hide()
-        mac_window.activate_app()
+        native_window.activate_app()
         dlg = ImportDialog(on_done=lambda: load_book(announce=False))
         dlg.raise_()
         dlg.activateWindow()
@@ -195,8 +196,14 @@ def main():
         listener = hotkey.start(bridge.triggered.emit)
         state["hotkey"] = listener
         ok = bool(listener and listener.ok)
-        print(f"熱鍵 {hotkey.HOTKEY_LABEL}：{'已掛上' if ok else '掛不上（權限或被其他程式佔用）'}",
-              flush=True)
+        state["hotkey_error"] = "" if ok else (getattr(listener, "error", "") or "原因不明")
+        if ok:
+            print(f"熱鍵 {hotkey.HOTKEY_LABEL}：已掛上", flush=True)
+        else:
+            print(f"熱鍵 {hotkey.HOTKEY_LABEL}：掛不上 —— {state['hotkey_error']}", flush=True)
+        # 熱鍵掛不上不是致命的（圖示選單照樣能查），但一定要看得見，
+        # 不然使用者只會覺得「按了沒反應」然後放棄
+        act_hotkey.setVisible(not ok and not permission.NEEDED)
         return ok
 
     def stop_hotkey():
@@ -208,8 +215,46 @@ def main():
                 pass
         state["hotkey"] = None
 
+    def show_hotkey_help():
+        """熱鍵掛不上時的說明（Windows 主要會用到這個）
+
+        最常見的原因是熱鍵被別的常駐程式先註冊走了，所以重點是
+        「怎麼換一組」，而不是「怎麼修好這一組」。
+        """
+        native_window.activate_app()
+        box = QMessageBox()
+        box.setWindowTitle("熱鍵沒掛上")
+        box.setIcon(QMessageBox.Warning)
+        box.setText(f"{hotkey.HOTKEY_LABEL} 現在不會有反應")
+        box.setInformativeText(
+            f"原因：{state.get('hotkey_error') or '不明'}\n\n"
+            "在那之前，點工作列圖示 → 查詢，功能完全一樣。\n\n"
+            "要換一組熱鍵的話，關掉程式，打開 config/settings.json，改這兩行：\n"
+            '    "key": "space"          （可填 space / f2 / q …）\n'
+            '    "modifiers": ["alt"]    （ctrl / alt / shift / cmd）\n'
+            "存檔後重開程式。\n\n"
+            "詳細情況可以從選單的「診斷資訊…」複製給對方看。"
+        )
+        box.setStandardButtons(QMessageBox.Ok)
+        diag_btn = box.addButton("看診斷資訊", QMessageBox.ActionRole)
+        box.exec()
+        if box.clickedButton() is diag_btn:
+            open_diag()
+
+    def open_diag():
+        native_window.activate_app()
+        listener = state.get("hotkey")
+        DiagDialog(
+            price_book=price_book,
+            hotkey_state={
+                "ok": bool(listener and listener.ok),
+                "error": state.get("hotkey_error", ""),
+                "label": hotkey.HOTKEY_LABEL,
+            },
+        ).exec()
+
     def show_permission_help():
-        mac_window.activate_app()
+        native_window.activate_app()
         owner = permission.responsible_app()
         target = f"「{owner}」" if owner else "這次啟動用的那個 App"
         box = QMessageBox()
@@ -283,6 +328,10 @@ def main():
     act_perm.triggered.connect(show_permission_help)
     act_perm.setVisible(False)
     menu.addAction(act_perm)
+    act_hotkey = QAction("⚠︎  熱鍵沒掛上…", menu)
+    act_hotkey.triggered.connect(show_hotkey_help)
+    act_hotkey.setVisible(False)
+    menu.addAction(act_hotkey)
     act_error = QAction("⚠︎  載入有問題…", menu)
     act_error.triggered.connect(show_errors)
     act_error.setVisible(False)
@@ -294,6 +343,9 @@ def main():
     act_reload.triggered.connect(lambda: load_book(announce=True))
     menu.addAction(act_reload)
     menu.addSeparator()
+    act_diag = QAction("診斷資訊…", menu)
+    act_diag.triggered.connect(open_diag)
+    menu.addAction(act_diag)
     act_quit = QAction("結束", menu)
     act_quit.triggered.connect(quit_app)
     menu.addAction(act_quit)
@@ -303,19 +355,25 @@ def main():
     # ---------------- 起跑 ----------------
     load_book()
 
-    trusted = permission.is_trusted()
-    if trusted:
-        start_hotkey()
-    if not hotkey.QUARTZ:
-        print("找不到 Quartz，熱鍵會照常傳給前景 App", flush=True)
+    if not hotkey.AVAILABLE:
+        print(f"熱鍵後端不可用：{hotkey.UNAVAILABLE_REASON}", flush=True)
 
-    # 沒有輔助使用權限的話，熱鍵會安靜地失效 —— 一定要講出來
-    act_perm.setVisible(not trusted)
-    if not trusted:
-        print("沒有輔助使用權限，熱鍵不會有反應", flush=True)
-        permission.request()
-        show_permission_help()
-    watch_permission(trusted)
+    if permission.NEEDED:
+        # macOS：沒有輔助使用權限的話，熱鍵會安靜地失效 —— 一定要講出來
+        trusted = permission.is_trusted()
+        if trusted:
+            start_hotkey()
+        act_perm.setVisible(not trusted)
+        if not trusted:
+            print("沒有輔助使用權限，熱鍵不會有反應", flush=True)
+            permission.request()
+            show_permission_help()
+        watch_permission(trusted)
+    else:
+        # Windows：不需要權限，直接註冊。失敗的話選單會出現警告項目，
+        # 而且工作列圖示 → 查詢照樣能用，不會變成完全不能操作的狀態。
+        if not start_hotkey():
+            show_hotkey_help()
 
     print(f"已啟動，常駐選單列。按 {hotkey.HOTKEY_LABEL} 查詢。", flush=True)
 

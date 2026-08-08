@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 )
 
 from core import local_lookup, settings
-from ui import mac_window, result_view, style
+from ui import native_window, result_view, style
 
 _W = settings.section("window")
 
@@ -20,7 +20,9 @@ EDGE_Y = _W["edge_y"]
 DIVIDER_GAP_TOP = _W["divider_gap_top"]
 DIVIDER_GAP_BOTTOM = _W["divider_gap_bottom"]
 PREFILL_MAX = _W["prefill_max_chars"]
-NATIVE_SHADOW = _W.get("shadow", "native") == "native"
+# 設定要求原生陰影、而且這個平台真的有（Windows 的無邊框視窗沒有）
+NATIVE_SHADOW = (_W.get("shadow", "native") == "native"
+                 and native_window.HAS_NATIVE_SHADOW)
 
 LIST_ROWS = max(1, min(_W["list_rows"], settings.get("data.result_limit", 6)))
 LIST_FIELDS = max(0, _W["list_fields"])
@@ -186,7 +188,7 @@ class PopupWindow(QWidget):
             return
         self.ensurePolished()
         self.winId()                       # 逼 Qt 現在就建立 NSWindow
-        mac_window.make_overlay(self)      # 只做這一次
+        native_window.make_overlay(self)      # 只做這一次
         self.setWindowOpacity(0.0)
         self.move(-30000, -30000)          # 在螢幕外，使用者看不到
         self._warm_styles()                # grab() 對隱藏的視窗也有效
@@ -303,7 +305,7 @@ class PopupWindow(QWidget):
         self.layout().invalidate()
         self.adjustSize()
         if NATIVE_SHADOW and self._warm:
-            mac_window.refresh_shadow(self)
+            native_window.refresh_shadow(self)
 
     # ---------- 搜尋 ----------
     def _on_text_edited(self, _text):
@@ -412,8 +414,8 @@ class PopupWindow(QWidget):
 
         self.show()
         self.raise_()
-        if not mac_window.focus_without_switching(self):
-            mac_window.activate_app()
+        if not native_window.focus_without_switching(self):
+            native_window.activate_app()
             self.activateWindow()
         self.search.setFocus()
         self.search.selectAll()

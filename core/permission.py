@@ -1,4 +1,10 @@
-"""輔助使用（Accessibility）權限
+"""輔助使用（Accessibility）權限 —— 只有 macOS 需要
+
+Windows 的 RegisterHotKey 不需要任何額外權限，所以在 Windows 上這個模組
+整個是空殼：`NEEDED` 是 False，`is_trusted()` 永遠回 True，
+main.py 靠 `NEEDED` 決定要不要顯示那一整串權限引導。
+
+以下說明只適用 macOS。
 
 全域熱鍵要靠這個權限才能監聽鍵盤。macOS 把權限記在「啟動這個程式的那個 App」
 身上（responsible process），所以從 Terminal 啟動就要授權 Terminal、包成 .app
@@ -13,19 +19,27 @@ import ctypes.util
 import os
 import subprocess
 
+from core import plat
+
 SETTINGS_URL = (
     "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
 )
 
-try:
-    from ApplicationServices import (
-        AXIsProcessTrusted,
-        AXIsProcessTrustedWithOptions,
-        kAXTrustedCheckOptionPrompt,
-    )
-    AVAILABLE = True
-except Exception:
+if plat.MACOS:
+    try:
+        from ApplicationServices import (
+            AXIsProcessTrusted,
+            AXIsProcessTrustedWithOptions,
+            kAXTrustedCheckOptionPrompt,
+        )
+        AVAILABLE = True
+    except Exception:
+        AVAILABLE = False
+else:
     AVAILABLE = False
+
+# 這個平台到底需不需要跟使用者要權限
+NEEDED = plat.MACOS and AVAILABLE
 
 
 def is_trusted():

@@ -1,18 +1,31 @@
 """所有會被寫入的路徑都集中在這裡
 
-現在都放在程式資料夾底下，方便開發與測試。
-之後打包成 .app（那裡是唯讀的）只要改這個檔案的 BASE_DIR 一行，
-其餘程式碼完全不用動。
+打包成單一 exe 之後，`__file__` 會指到 PyInstaller 解壓出來的暫存資料夾
+（每次執行都不一樣，而且程式關掉就沒了）。設定檔和快取寫進去等於沒寫，
+使用者調好的東西下次開就不見了。所以打包後一律以「exe 自己在哪」為準。
 """
 
 import os
+import sys
 
 APP_NAME = "料號查詢"
 
-APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# 打包後改成：
-#   BASE_DIR = os.path.expanduser(f"~/Library/Application Support/{APP_NAME}")
+def _app_dir():
+    """程式的家 —— 設定、資料、快取都放這底下
+
+    直接跑原始碼時是專案資料夾；打包成 exe 後是 exe 所在的資料夾，
+    使用者看得到、改得到、備份得走。
+    """
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+APP_DIR = _app_dir()
+
+# 之後如果要改放系統的使用者資料夾（macOS 的 Application Support、
+# Windows 的 %LOCALAPPDATA%），只要改這一行，其餘程式碼完全不用動。
 BASE_DIR = APP_DIR
 
 CONFIG_DIR = os.path.join(BASE_DIR, "config")

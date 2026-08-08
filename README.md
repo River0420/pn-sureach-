@@ -1,18 +1,19 @@
 # 料號查詢小工具
 
-macOS 選單列常駐工具。按 `⌥Space` 叫出查詢視窗，**打字就直接找**，
+macOS 選單列 / Windows 工作列常駐工具。按熱鍵叫出查詢視窗，**打字就直接找**，
 下面即時列出最相近的 6 筆（含價格、庫存摘要），按 `return` 才進到單筆完整資料。
 資料來自本機的 Excel / CSV，不連外網。
 
 ```
-⌥Space          叫出視窗
-打字            直接找，不用按 return
-↑ ↓             選
-return          看這一筆的完整資料
-esc             從完整資料回清單；在清單再按一次關掉視窗
+⌥Space / Alt+Space   叫出視窗
+打字                 直接找，不用按 return
+↑ ↓                  選
+return               看這一筆的完整資料
+esc                  從完整資料回清單；在清單再按一次關掉視窗
 ```
 
-目前狀態：**MVP，只能在已安裝相依套件的機器上跑**（尚未打包成 .app）。
+目前狀態：**MVP，只能在已安裝相依套件的機器上跑**（尚未打包）。
+Windows 版的程式碼已完成，但尚未在真正的 Windows 上跑過 —— 見〈跨平台〉。
 
 ---
 
@@ -52,7 +53,7 @@ python3 main.py
 | 視窗出現位置 | `window.anchor`：`top-right` / `top-left` / `top-center` / `center` |
 | 配色 | `theme.bg` / `text` / `accent` … |
 | 字級 | `theme.*_size`（`base_size` 是 pt，其餘是 px） |
-| 熱鍵 | `hotkey.keycode` + `hotkey.modifiers`（`cmd`/`alt`/`ctrl`/`shift`） |
+| 熱鍵 | `hotkey.key`（`space`/`f2`/`q`…）+ `hotkey.modifiers`（`ctrl`/`alt`/`shift`/`cmd`，Windows 上 `cmd` = Win 鍵） |
 | 最多幾個來源檔 | `data.max_sources`（上限 5） |
 | 資料筆數上限 | `data.max_rows_per_source`（0 = 不限） |
 | 關掉 Excel 解析快取 | `data.cache: false` |
@@ -66,20 +67,56 @@ python3 main.py
 
 ```
 core/            完全不依賴 Qt，可以在背景執行緒整包跑完
-  paths.py         所有會被寫入的路徑（打包時只要改這裡）
+  plat.py          跑在哪個 OS、跨平台的按鍵名稱對照
+  paths.py         所有會被寫入的路徑（打包後自動改用 exe 所在資料夾）
   settings.py      使用者可調設定，含預設值與版本升級
   book_config.py   匯入了哪些檔案、顯示哪些欄位
   local_lookup.py  讀檔、建索引、查詢；Snapshot 是不可變的載入結果
-  hotkey.py        全域熱鍵（Quartz event tap）
-  permission.py    輔助使用權限的偵測與引導
+  diagnostics.py   自我診斷報告（純文字，給遠端 debug 用）
+  hotkey.py        全域熱鍵的統一介面
+  hotkey_mac.py      └ macOS：Quartz event tap
+  hotkey_win.py      └ Windows：RegisterHotKey
+  permission.py    輔助使用權限（只有 macOS 需要）
 ui/              Qt 介面
   style.py         QSS，由 settings 產生
   popup.py         熱鍵查詢視窗（清單 / 詳細兩個畫面）
   result_view.py   查詢結果的畫法（彈窗與匯入預覽共用）
   import_dialog.py 匯入設定視窗
-  mac_window.py    macOS 原生視窗行為
+  diag_dialog.py   診斷報告視窗（重點是「複製全部」那顆按鈕）
+  native_window.py 原生視窗行為的統一介面
+  mac_window.py      └ macOS：accessory 化、浮動面板、原生陰影
+  win_window.py      └ Windows：搶前景權、Win11 圓角
 main.py          組裝、選單列、背景載入、熱鍵生命週期
 ```
+
+### 跨平台
+
+平台差異全部收在四個檔案裡（`hotkey_*.py`、`*_window.py`），其餘 3,200 行
+兩邊完全共用。要加平台就再加一組實作，不要在其他檔案裡寫 `if WINDOWS`。
+
+| | macOS | Windows |
+|---|---|---|
+| 全域熱鍵 | Quartz event tap | `RegisterHotKey` |
+| 需要權限 | 要「輔助使用」 | **不用** |
+| 不進 Dock / 工作列 | `NSApplicationActivationPolicyAccessory` | `Qt.Tool`（Qt 內建） |
+| 取得鍵盤焦點 | `makeKeyWindow`（不切換前景 App） | `SetForegroundWindow` |
+| 視窗陰影 | NSWindow 原生 | 沒有（用邊框＋圓角代替） |
+
+熱鍵失敗時兩邊都不會變成「按了沒反應」：選單會出現 `⚠︎ 熱鍵沒掛上…`，
+點進去有原因和換一組的做法，而且**點圖示 → 查詢照樣能用**。
+
+Windows 的邏輯（註冊、收熱鍵、錯誤碼翻譯、`stop()` 收尾）用假的 Win32
+在 macOS 上跑過 31 項檢查。真正的 Windows 行為 —— 熱鍵會不會被防毒攔、
+字型長相、打包後能不能執行 —— 只能在 Windows 上驗。
+
+### 出問題怎麼查
+
+選單列圖示 → **診斷資訊…** → 「複製全部」。會產生一份純文字報告：
+作業系統、套件版本、熱鍵狀態與失敗原因、載入了哪些檔案幾筆、
+一次真實查詢的結果與耗時、最近 25 行 log。
+
+這是為了「程式在一台我摸不到的電腦上」設計的 —— 有這份報告，
+不用坐在那台機器前面也查得下去。
 
 ### 兩條不能違反的規則
 
@@ -136,8 +173,18 @@ main.py          組裝、選單列、背景載入、熱鍵生命週期
 
 ## 還沒做（下一階段）
 
+**Windows 交付**（程式碼已完成，卡在打包與驗證）
+
+- GitHub Actions 在 windows-latest 上跑測試 + PyInstaller 打包
+- exe 與程式碼分開：重的執行環境只下載一次，之後每次改只換 50 KB 的 `app/`
+- 一個小的環境檢測程式，先確認公司電腦讓不讓這種東西跑
+- 拿到真的 Windows 上驗：熱鍵、工作列圖示、字型、防毒
+
+**其他**
+
 - 打包成 `.app`（py2app）+ Developer ID 簽章 + 公證
-- 設定與資料改放 `~/Library/Application Support/`（只需改 `core/paths.py`）
+- 設定與資料改放系統的使用者資料夾（只需改 `core/paths.py` 的 `BASE_DIR`）
 - 深色模式
 - 授權機制
 - 更大的資料量改用 SQLite
+- DigiKey / Mouser API（接了才需要打開 `window.source_badge`）

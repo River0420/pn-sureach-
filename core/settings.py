@@ -12,20 +12,21 @@ import copy
 import json
 import os
 
-from core import paths
+from core import paths, plat
 
-VERSION = 1
+VERSION = 2
 
 DEFAULTS = {
     "version": VERSION,
 
     # ---------- 熱鍵 ----------
     "hotkey": {
-        # macOS 的 virtual keycode。49 = 空白鍵、53 = Esc、120 = F2…
-        "keycode": 49,
-        # 可填 cmd / alt(option) / ctrl / shift，可複選
+        # 按鍵名稱，macOS 和 Windows 通用：space / return / esc / tab /
+        # f1~f12 / a~z。程式會自己翻成各平台的鍵碼。
+        "key": "space",
+        # 可填 cmd(win) / alt(option) / ctrl / shift，可複選
         "modifiers": ["alt"],
-        # 留空字串代表自動依 keycode + modifiers 產生（例如 ⌥Space）
+        # 留空字串代表自動產生（macOS 顯示 ⌥Space，Windows 顯示 Alt+Space）
         "label": "",
     },
 
@@ -126,9 +127,17 @@ def _merge(base, override):
 
 
 def _migrate(data):
-    """舊版設定檔升級的入口 —— 目前只有 v1，先把位置留好"""
+    """舊版設定檔升級
+
+    v1 → v2：熱鍵從 macOS 的 virtual keycode 數字改成跨平台的按鍵名稱。
+    在這裡就翻好，後面的程式碼只要認得 `key` 一種寫法。
+    """
     if not isinstance(data, dict):
         return {}
+    hk = data.get("hotkey")
+    if isinstance(hk, dict) and "keycode" in hk:
+        code = hk.pop("keycode")
+        hk.setdefault("key", plat.key_name(code))
     return data
 
 
