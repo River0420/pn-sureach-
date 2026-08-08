@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "hotkey": {
+    "keycode": 49,
+    "modifiers": [
+      "alt"
+    ],
+    "label": ""
+  },
+  "window": {
+    "width": 420,
+    "padding_x": 22,
+    "padding_top": 20,
+    "padding_bottom": 20,
+    "anchor": "top-right",
+    "edge_x": 14,
+    "edge_y": 8,
+    "radius": 14,
+    "shadow": "native",
+    "field_label_width": 92,
+    "prefill_max_chars": 64,
+    "divider_gap_top": 14,
+    "divider_gap_bottom": 16,
+    "row_gap": 9,
+    "hero_gap": 14,
+    "list_rows": 6,
+    "list_fields": 2,
+    "list_row_gap": 2,
+    "list_sep": "  ·  ",
+    "search_debounce_ms": 0
+  },
+  "theme": {
+    "bg": "#FAF9F5",
+    "surface": "#FFFFFF",
+    "border": "#E8E4DA",
+    "border_soft": "#F0EDE5",
+    "text": "#2B2A26",
+    "text_soft": "#6B675C",
+    "text_muted": "#9B9689",
+    "accent": "#C96442",
+    "accent_hover": "#B85838",
+    "accent_soft": "#F6EAE3",
+    "green": "#5A7D5A",
+    "danger": "#B0483A",
+    "base_size": 13,
+    "search_size": 19,
+    "part_number_size": 16,
+    "hero_size": 21,
+    "field_label_size": 12,
+    "field_value_size": 13,
+    "hint_size": 13,
+    "error_size": 15,
+    "badge_size": 10,
+    "list_key_size": 14,
+    "list_value_size": 13,
+    "list_row_padding": 7
+  },
+  "data": {
+    "max_sources": 3,
+    "max_rows_per_source": 0,
+    "warn_rows": 300000,
+    "result_limit": 6,
+    "search_min_len": 1,
+    "substring_min_len": 2,
+    "cache": true,
+    "cache_keep": 24,
+    "csv_encodings": [
+      "utf-8-sig",
+      "cp950",
+      "utf-8",
+      "latin-1"
+    ]
+  },
+  "app": {
+    "lock_port": 49731,
+    "permission_poll_ms": 2000
+  }
+}

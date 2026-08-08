@@ -1,0 +1,6 @@
+# 執行時產生的東西，不進版本
+__pycache__/
+*.pyc
+cache/
+*.log
+.DS_Store

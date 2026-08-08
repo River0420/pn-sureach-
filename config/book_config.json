@@ -1,0 +1,42 @@
+{
+  "version": 2,
+  "sources": [
+    {
+      "id": "s1",
+      "name": "範例_PriceBook.xlsx",
+      "path": "data/source_s1.xlsx",
+      "source_path": "/Users/chris/Desktop/Claude files/sourcing-tool/data/範例_PriceBook.xlsx",
+      "sheet": "Price Book",
+      "header_row": 0,
+      "key_column": "料號"
+    },
+    {
+      "id": "s2",
+      "name": "表B_庫存交期.xlsx",
+      "path": "data/source_s2.xlsx",
+      "source_path": "/Users/chris/Desktop/Claude files/sourcing-tool/data/範例三個表/表B_庫存交期.xlsx",
+      "sheet": null,
+      "header_row": 0,
+      "key_column": "料號"
+    },
+    {
+      "id": "s3",
+      "name": "表C_供應商.xlsx",
+      "path": "data/source_s3.xlsx",
+      "source_path": "/Users/chris/Desktop/Claude files/sourcing-tool/data/範例三個表/表C_供應商.xlsx",
+      "sheet": null,
+      "header_row": 0,
+      "key_column": "品號"
+    }
+  ],
+  "display_columns": [
+    {
+      "source": "s1",
+      "column": "建議售價"
+    },
+    {
+      "source": "s1",
+      "column": "最低訂購量"
+    }
+  ]
+}
