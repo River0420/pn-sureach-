@@ -59,13 +59,22 @@ with open(path("fake_text.xls"), "w", encoding="cp950") as f:
     for r in ROWS:
         f.write("\t".join(str(v) for v in r) + "\n")
 
-# 4. Big5 的 CSV，前面還有兩列抬頭
-with open(path("erp.csv"), "w", encoding="cp950") as f:
-    f.write("◎◎電子股份有限公司\n")
-    f.write("庫存暨報價表\n")
-    f.write(",".join(COLS) + "\n")
-    for r in ROWS:
-        f.write(",".join(str(v) for v in r) + "\n")
+# 4. Big5 的 CSV，前面還有兩列抬頭。
+#    換行符號兩種都要測 —— 這裡曾經出過一個只在 Windows 上壞掉的 bug：
+#    用 text mode 寫檔時，Windows 給的是 \r\n，而當時的分隔符號判斷
+#    是交給 pandas 自己猜的，換行一變答案就跟著變。所以一律用 binary
+#    明確寫出兩種版本，兩個平台跑的是同一份輸入。
+LINES = ["◎◎電子股份有限公司", "庫存暨報價表", ",".join(COLS)]
+LINES += [",".join(str(v) for v in r) for r in ROWS]
+for name, newline in (("erp.csv", "\n"), ("erp_crlf.csv", "\r\n")):
+    with open(path(name), "wb") as f:
+        f.write((newline.join(LINES) + newline).encode("cp950"))
+
+# 5. tab 分隔，而且抬頭那列裡剛好有逗號（分隔符號判斷的陷阱）
+with open(path("tabs.xls"), "wb") as f:
+    f.write(("公司名稱, 地址, 電話\n報表\n" + "\t".join(COLS) + "\n"
+             + "\n".join("\t".join(str(v) for v in r) for r in ROWS)
+             + "\n").encode("utf-8"))
 
 # ---------------------------------------------------------------- 測試
 print("\n[1] 認得出檔案真正的格式")
@@ -81,6 +90,8 @@ CASES = [
     ("fake_html.xls", 0),
     ("fake_text.xls", 0),
     ("erp.csv", None),          # None = 讓程式自己猜標題列
+    ("erp_crlf.csv", None),     # Windows 的換行，答案必須跟上面一模一樣
+    ("tabs.xls", None),
 ]
 for name, header in CASES:
     try:
@@ -107,8 +118,20 @@ check("純文字偽裝的回空清單", list_sheets(path("fake_text.xls")) == []
 check("CSV 回空清單", list_sheets(path("erp.csv")) == [])
 
 print("\n[5] 猜標題列在偽裝檔上也要work")
-check("CSV 前面兩列抬頭有跳過", detect_header_row(path("erp.csv")) == 2,
-      str(detect_header_row(path("erp.csv"))))
+for name in ("erp.csv", "erp_crlf.csv", "tabs.xls"):
+    got = detect_header_row(path(name))
+    check(f"{name:14s} 前面兩列抬頭有跳過", got == 2, str(got))
+
+print("\n[5b] 分隔符號要自己判斷，不能靠 pandas 猜")
+from core.local_lookup import _decode, _guess_sep
+check("逗號檔判成逗號", _guess_sep(_decode(path("erp.csv"))) == ",")
+check("換行變 CRLF 不影響", _guess_sep(_decode(path("erp_crlf.csv"))) == ",")
+check("tab 檔判成 tab（不被抬頭裡的逗號騙走）",
+      _guess_sep(_decode(path("tabs.xls"))) == "\t",
+      repr(_guess_sep(_decode(path("tabs.xls")))))
+check("LF 和 CRLF 的結果必須完全一樣",
+      read_table(path("erp.csv"), None, 2).equals(
+          read_table(path("erp_crlf.csv"), None, 2)))
 
 print("\n[6] 真的讀不了的時候要講人話")
 with open(path("broken.xls"), "wb") as f:

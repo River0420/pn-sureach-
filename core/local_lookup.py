@@ -77,37 +77,61 @@ def _decode(path):
     使用者至少看得到哪幾欄怪怪的。
     """
     raw = open(path, "rb").read()
+    text = None
     for encoding in _encodings():
         try:
-            return raw.decode(encoding)
+            text = raw.decode(encoding)
+            break
         except UnicodeDecodeError:
             continue
-    return raw.decode("utf-8", errors="replace")
+    if text is None:
+        text = raw.decode("utf-8", errors="replace")
+    # 換行一律正規化。Windows 寫出來的是 \r\n，留著會讓後面每一段
+    # 「同一份程式在兩個系統上行為不同」，那種 bug 最難追。
+    return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
-# 自動偵測失敗時照順序試這幾種。tab 放在逗號前面 —— 報表匯出用 tab 的很多
-_SEPARATORS = [None, ",", "\t", ";", "|"]
+_SEPARATORS = [",", "\t", ";", "|"]
+
+
+def _guess_sep(text):
+    """自己判斷分隔符號，不要交給 pandas
+
+    為什麼不用 pandas 的 sep=None：它內部是 csv.Sniffer，結果會隨
+    pandas 版本和換行符號改變 —— 同一個檔案在我的 Mac 上切得好好的，
+    在 Windows 的 CI 上整列變成一欄。讀檔這種地方不能有「有時候對」。
+
+    判斷方式：找出「每一行都出現同樣次數」的那個符號。真正的分隔符號
+    在每個資料列的數量必然一致，而抬頭列那種雜訊行本來就對不上，
+    所以拿多數決就能把它們排除掉。
+    """
+    lines = [l for l in text.split("\n")[:60] if l.strip()]
+    if not lines:
+        return ","
+    best, best_score = ",", 0
+    for sep in _SEPARATORS:
+        counts = [l.count(sep) for l in lines]
+        common = Counter(c for c in counts if c > 0).most_common(1)
+        if not common:
+            continue
+        per_line, lines_agreeing = common[0]
+        score = per_line * lines_agreeing      # 切得多、又一致的贏
+        if score > best_score:
+            best, best_score = sep, score
+    return best
 
 
 def _read_csv(path, header_row, nrows=None, names=None):
-    """純文字表格：編碼和分隔符號都用試的
-
-    分隔符號不能只靠 pandas 的自動偵測。它是拿前幾行去猜，而 ERP 報表的
-    前幾行常常是「◎◎電子股份有限公司」這種沒有任何分隔符號的抬頭，
-    一猜就丟 "Could not determine delimiter" 整個讀不了。
-    """
+    """純文字表格：編碼自己試，分隔符號自己判斷"""
     text = _decode(path)
+    guess = _guess_sep(text)
     last = None
-    for sep in _SEPARATORS:
+    for sep in [guess] + [s for s in _SEPARATORS if s != guess]:
         try:
-            df = pd.read_csv(io.StringIO(text), header=header_row, nrows=nrows,
-                             names=names, sep=sep, engine="python")
+            return pd.read_csv(io.StringIO(text), header=header_row, nrows=nrows,
+                               names=names, sep=sep, engine="python")
         except Exception as e:
             last = e
-            continue
-        # 只切出一欄通常代表分隔符號猜錯了，換下一個再試
-        if len(df.columns) > 1 or sep == _SEPARATORS[-1]:
-            return df
     raise last or ValueError("這個檔案的分隔符號認不出來")
 
 
