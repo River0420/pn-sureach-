@@ -40,7 +40,7 @@ jobs:
           python tests/test_live.py
 
       - name: 打包
-        run: pyinstaller --noconfirm --clean build/windows.spec
+        run: pyinstaller --noconfirm --clean packaging/windows.spec
 
       # 把使用者要自己改的東西放進去，並附一份說明
       - name: 附上設定檔與說明

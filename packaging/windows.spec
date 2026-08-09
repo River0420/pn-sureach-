@@ -10,16 +10,17 @@
 #
 # config / data / cache 刻意不打包進去 —— 它們是使用者的東西，
 # 要放在 exe 旁邊讓人看得到、改得到、備份得走（見 core/paths.py）。
+#
+# 寫法是 PyInstaller 6 的。5 以前的 cipher / zipped_data /
+# win_no_prefer_redirects 這些參數已經被拿掉了，不要加回來。
 
 import os
 
-block_cipher = None
 ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
 
 # pandas 的 Excel 引擎是執行時才動態 import 的，PyInstaller 掃不到，要自己講
 HIDDEN = [
     "openpyxl",
-    "openpyxl.cell._writer",
     "pandas._libs.tslibs.base",
 ]
 
@@ -40,12 +41,10 @@ a = Analysis(
     hookspath=[],
     runtime_hooks=[],
     excludes=EXCLUDES,
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
-    cipher=block_cipher,
     noarchive=False,
 )
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+pyz = PYZ(a.pure)
 
 gui = EXE(
     pyz,
@@ -78,7 +77,6 @@ coll = COLLECT(
     gui,
     console,
     a.binaries,
-    a.zipfiles,
     a.datas,
     strip=False,
     upx=False,

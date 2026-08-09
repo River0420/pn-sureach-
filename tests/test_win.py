@@ -107,15 +107,26 @@ def load_hotkey_win(register_ok=True, last_error=0):
 
 
 # ---------------------------------------------------------------- 測試
-print("\n[1] 在 macOS 上 import 不能爆炸")
-import core.hotkey_win as hw_mac
-check("hotkey_win 在非 Windows 上載得起來", True)
-check("AVAILABLE 自動變 False", hw_mac.AVAILABLE is False, str(hw_mac.AVAILABLE))
-l = hw_mac.Listener(lambda: None, 0x20, ["alt"])
-check("start() 不會丟例外，回 False", l.start() is False)
-check("有講出原因", bool(l.error), l.error)
-l.stop()
-check("stop() 在沒啟動的情況下也安全", True)
+ON_WINDOWS = sys.platform.startswith("win")
+
+print("\n[1] 沒有 Win32 的機器上 import 不能爆炸")
+if ON_WINDOWS:
+    # 這一段是在驗「非 Windows 平台的降級行為」。真的在 Windows 上跑的時候
+    # user32 載得起來，AVAILABLE 本來就該是 True，硬套會誤判成失敗。
+    # 而且 Listener.start() 會真的去註冊一組全域熱鍵，不該在 CI 上做。
+    import core.hotkey_win as hw_real
+    check("在 Windows 上 AVAILABLE 是 True", hw_real.AVAILABLE is True,
+          str(hw_real.AVAILABLE))
+    print("     （降級行為的檢查只在非 Windows 上跑，這裡跳過）")
+else:
+    import core.hotkey_win as hw_mac
+    check("hotkey_win 在非 Windows 上載得起來", True)
+    check("AVAILABLE 自動變 False", hw_mac.AVAILABLE is False, str(hw_mac.AVAILABLE))
+    l = hw_mac.Listener(lambda: None, 0x20, ["alt"])
+    check("start() 不會丟例外，回 False", l.start() is False)
+    check("有講出原因", bool(l.error), l.error)
+    l.stop()
+    check("stop() 在沒啟動的情況下也安全", True)
 
 print("\n[2] 修飾鍵換算")
 install_fakes()      # 從這裡開始都是假的 Win32
