@@ -1,4 +1,6 @@
-PySide6>=6.6,<7
+# 只用 QtCore / QtGui / QtWidgets，所以裝 Essentials 就夠。
+# 直接寫 PySide6 會連 Addons（WebEngine、多媒體、3D）一起拉，多 300MB 用不到的東西。
+PySide6-Essentials>=6.6,<7
 pandas>=2.0,<4
 openpyxl>=3.1
 pyperclip>=1.8

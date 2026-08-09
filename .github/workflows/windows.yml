@@ -1,0 +1,67 @@
+# 在真正的 Windows 上跑測試並打包成 exe
+#
+# 存在的理由：開發是在 Mac 上做的，但這個工具要在公司的 Windows 上用。
+# 沒有這一步的話，「能不能在 Windows 上跑」要等使用者親自試才知道，
+# 而且錯了也不知道錯在哪。這裡先讓一台真的 Windows 幫忙驗過再交出去。
+
+name: Windows 打包
+
+on:
+  push:
+    branches: [windows, main]
+  workflow_dispatch:        # 也可以在 Actions 頁面手動按
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 3.12 是 PySide6 / pandas 在 Windows 上輪子最齊全的版本。
+      # 打包後使用者的電腦不需要有 Python，所以這裡選穩定優先。
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 安裝相依套件
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller
+
+      # 這兩個測試不需要畫面，但 Qt 還是要一個 platform plugin
+      - name: 跑測試
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python tests/test_win.py
+          python tests/test_live.py
+
+      - name: 打包
+        run: pyinstaller --noconfirm --clean build/windows.spec
+
+      # 把使用者要自己改的東西放進去，並附一份說明
+      - name: 附上設定檔與說明
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "dist/料號查詢/data" | Out-Null
+          Copy-Item -Recurse -Force "data/*" "dist/料號查詢/data/" -ErrorAction SilentlyContinue
+          Copy-Item -Force "README.md" "dist/料號查詢/README.md"
+          Copy-Item -Force "docs/怎麼用.txt" "dist/料號查詢/怎麼用.txt"
+
+      - name: 快速檢查打包結果
+        shell: pwsh
+        run: |
+          $exe = "dist/料號查詢/料號查詢.exe"
+          if (-not (Test-Path $exe)) { throw "沒有產生 exe" }
+          $size = (Get-ChildItem -Recurse "dist/料號查詢" | Measure-Object -Property Length -Sum).Sum / 1MB
+          Write-Host ("整包大小：{0:N1} MB" -f $size)
+          Get-ChildItem "dist/料號查詢/*.exe" | Format-Table Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 料號查詢-Windows
+          path: dist/料號查詢
+          retention-days: 30

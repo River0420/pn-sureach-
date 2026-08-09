@@ -35,8 +35,20 @@
       "column": "建議售價"
     },
     {
+      "source": "s3",
+      "column": "產地"
+    },
+    {
+      "source": "s3",
+      "column": "報價幣別"
+    },
+    {
       "source": "s1",
       "column": "最低訂購量"
+    },
+    {
+      "source": "s3",
+      "column": "最後更新"
     }
   ]
 }
