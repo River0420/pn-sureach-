@@ -32,9 +32,13 @@ jobs:
           python -m pip install pyinstaller
 
       # 這兩個測試不需要畫面，但 Qt 還是要一個 platform plugin
+      # PYTHONUTF8 一定要設：Windows 的主控台預設是 cp1252，
+      # 程式和測試印的中文會直接丟 UnicodeEncodeError。
       - name: 跑測試
         env:
           QT_QPA_PLATFORM: offscreen
+          PYTHONUTF8: "1"
+          PYTHONIOENCODING: "utf-8"
         run: |
           python tests/test_win.py
           python tests/test_live.py

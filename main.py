@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 import pyperclip
 
-from core import hotkey, local_lookup, permission, plat, settings
+from core import applog, hotkey, local_lookup, paths, permission, plat, settings
 from core.local_lookup import LocalPriceBook
 from ui import native_window, popup as popup_mod, style
 from ui.diag_dialog import DiagDialog
@@ -52,6 +52,30 @@ def make_icon():
     return QIcon(pix)
 
 
+def install_crash_handler():
+    """沒攔到的例外要留下痕跡，而且要讓使用者看得到
+
+    打包成沒有主控台的 exe 之後，未處理的例外預設是「視窗消失，什麼都沒有」。
+    使用者只會說「它突然不見了」，而那是最難查的一種回報。
+    這裡至少保證兩件事：寫進 log、跳一個看得到的視窗。
+    """
+    import traceback
+
+    def hook(exc_type, exc, tb):
+        text = "".join(traceback.format_exception(exc_type, exc, tb))
+        print("=== 未處理的錯誤 ===\n" + text, flush=True)
+        try:
+            QMessageBox.critical(
+                None, "程式發生錯誤",
+                f"{exc_type.__name__}: {exc}\n\n"
+                f"詳細內容已寫進：\n{paths.LOG_PATH}\n\n"
+                "可以從工作列圖示的「診斷資訊…」複製完整報告。")
+        except Exception:
+            pass      # 連對話框都開不了（Qt 還沒起來），至少 log 有了
+
+    sys.excepthook = hook
+
+
 class Bridge(QObject):
     """把背景執行緒的熱鍵事件安全送回 Qt 主執行緒"""
     triggered = Signal()
@@ -87,6 +111,12 @@ class BookLoader(QRunnable):
 
 
 def main():
+    # 第一件事：讓輸出吃得下中文、而且會留下 log。
+    # Windows 的主控台預設編碼印不出中文，會在最莫名其妙的地方把程式弄死。
+    applog.install()
+    install_crash_handler()
+    print(f"=== 啟動（{plat.NAME}）===", flush=True)
+
     lock = acquire_single_instance()
     if lock is None:
         print("已經有一個實例在執行了，這次不重複啟動。", flush=True)
