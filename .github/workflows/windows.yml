@@ -42,6 +42,7 @@ jobs:
         run: |
           python tests/test_win.py
           python tests/test_live.py
+          python tests/test_formats.py
 
       - name: 打包
         run: pyinstaller --noconfirm --clean packaging/windows.spec

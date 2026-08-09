@@ -21,6 +21,10 @@ ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
 # pandas 的 Excel 引擎是執行時才動態 import 的，PyInstaller 掃不到，要自己講
 HIDDEN = [
     "openpyxl",
+    "xlrd",                 # 舊版 .xls
+    "lxml",                 # 偽裝成 .xls 的 HTML 表格
+    "lxml.etree",
+    "html5lib",
     "pandas._libs.tslibs.base",
 ]
 

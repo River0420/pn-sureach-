@@ -3,6 +3,8 @@
 PySide6-Essentials>=6.6,<7
 pandas>=2.0,<4
 openpyxl>=3.1
+xlrd>=2.0.1          # 舊版 .xls（ERP 匯出的常常還是這個格式）
+lxml>=4.9            # 有些 .xls 其實是 HTML 表格換副檔名
 pyperclip>=1.8
 pyobjc-framework-Cocoa>=10.0; sys_platform == "darwin"
 pyobjc-framework-Quartz>=10.0; sys_platform == "darwin"

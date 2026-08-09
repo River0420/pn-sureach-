@@ -5,6 +5,7 @@
 """
 
 import hashlib
+import io
 import numbers
 import os
 import re
@@ -39,24 +40,122 @@ EXCEL_EXTS = (".xlsx", ".xlsm", ".xls")
 
 # --------------------------------------------------------------- 讀檔
 
-def _read_csv(path, header_row):
-    """CSV 編碼一個一個試 —— 台灣 ERP 匯出的多半是 Big5(cp950)，不是 UTF-8"""
-    last = None
-    for encoding in settings.get("data.csv_encodings", ["utf-8-sig", "cp950"]):
+def _sniff(path):
+    """看檔案開頭的位元組，判斷它「真正」是什麼格式
+
+    副檔名不能信。ERP 匯出的 .xls 有很高比例根本不是 Excel 二進位檔 ——
+    是 HTML 表格或純文字換個副檔名而已（很多系統是拿報表引擎直接吐的）。
+    直接丟給 pandas 只會得到「File is not a recognized excel file」這種
+    對使用者毫無幫助的訊息。
+
+    回傳 xlsx / xls / html / text 其中之一。
+    """
+    try:
+        with open(path, "rb") as f:
+            head = f.read(2048)
+    except Exception:
+        return "text"
+    if head.startswith(b"PK\x03\x04"):
+        return "xlsx"                       # zip 容器 = xlsx / xlsm
+    if head.startswith(b"\xd0\xcf\x11\xe0"):
+        return "xls"                        # OLE2 複合檔 = 真正的舊版 xls
+    lowered = head.lstrip(b"\xef\xbb\xbf").lstrip().lower()
+    if lowered.startswith(b"<") or b"<table" in lowered or b"<html" in lowered:
+        return "html"
+    return "text"
+
+
+def _encodings():
+    return settings.get("data.csv_encodings", ["utf-8-sig", "cp950"])
+
+
+def _decode(path):
+    """把檔案讀成文字，編碼一個一個試
+
+    台灣 ERP 匯出的多半是 Big5(cp950)，不是 UTF-8。
+    全部都失敗就用最寬鬆的方式硬讀 —— 亂碼總比整個檔案打不開好，
+    使用者至少看得到哪幾欄怪怪的。
+    """
+    raw = open(path, "rb").read()
+    for encoding in _encodings():
         try:
-            return pd.read_csv(path, header=header_row, encoding=encoding)
-        except UnicodeDecodeError as e:
+            return raw.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return raw.decode("utf-8", errors="replace")
+
+
+# 自動偵測失敗時照順序試這幾種。tab 放在逗號前面 —— 報表匯出用 tab 的很多
+_SEPARATORS = [None, ",", "\t", ";", "|"]
+
+
+def _read_csv(path, header_row, nrows=None, names=None):
+    """純文字表格：編碼和分隔符號都用試的
+
+    分隔符號不能只靠 pandas 的自動偵測。它是拿前幾行去猜，而 ERP 報表的
+    前幾行常常是「◎◎電子股份有限公司」這種沒有任何分隔符號的抬頭，
+    一猜就丟 "Could not determine delimiter" 整個讀不了。
+    """
+    text = _decode(path)
+    last = None
+    for sep in _SEPARATORS:
+        try:
+            df = pd.read_csv(io.StringIO(text), header=header_row, nrows=nrows,
+                             names=names, sep=sep, engine="python")
+        except Exception as e:
             last = e
             continue
-    raise last or UnicodeDecodeError("csv", b"", 0, 1, "無法判斷這個 CSV 的編碼")
+        # 只切出一欄通常代表分隔符號猜錯了，換下一個再試
+        if len(df.columns) > 1 or sep == _SEPARATORS[-1]:
+            return df
+    raise last or ValueError("這個檔案的分隔符號認不出來")
+
+
+def _read_html(path, header_row, nrows=None):
+    """把 HTML 表格當成試算表讀 —— 取頁面上最大的那個 <table>
+
+    一定要自己先解碼再交給 pandas。直接把路徑丟進去的話它會用系統預設編碼，
+    Big5 的報表會整片變成亂碼 —— 而且不會報錯，只是欄位名稱全是問號。
+    """
+    try:
+        tables = pd.read_html(io.StringIO(_decode(path)), header=header_row)
+    except ImportError:
+        raise ValueError(
+            "這個檔案其實是 HTML 表格（副檔名寫 .xls 而已），"
+            "要讀它需要 lxml 套件，但目前沒裝。"
+            "請先用 Excel 開啟這個檔案，另存成 .xlsx 再匯入。")
+    if not tables:
+        raise ValueError("這個檔案裡找不到任何表格")
+    df = max(tables, key=lambda t: t.size)
+    return df.head(nrows) if nrows else df
+
+
+def _read_any(path, sheet=None, header_row=0, nrows=None, names=None):
+    """統一入口：不管副檔名寫什麼，用檔案真正的格式去讀
+
+    header_row 傳 None 代表「不要套欄位名稱」（猜標題列時用）。
+    """
+    ext = os.path.splitext(path)[1].lower()
+    kind = _sniff(path) if ext in EXCEL_EXTS else "text"
+
+    if kind in ("xlsx", "xls"):
+        try:
+            return pd.read_excel(path, sheet_name=sheet or 0,
+                                 header=header_row, nrows=nrows)
+        except ImportError as e:
+            # pandas 讀舊版 .xls 要另外裝 xlrd，訊息是英文的而且沒講怎麼辦
+            if "xlrd" in str(e):
+                raise ValueError(
+                    "這是舊版的 .xls 格式，需要 xlrd 套件才讀得了（目前沒裝）。"
+                    "最快的解法：用 Excel 開啟後「另存新檔」成 .xlsx 再匯入。") from e
+            raise
+    if kind == "html":
+        return _read_html(path, header_row, nrows)
+    return _read_csv(path, header_row, nrows=nrows, names=names)
 
 
 def read_table(path, sheet=None, header_row=0):
-    ext = os.path.splitext(path)[1].lower()
-    if ext in EXCEL_EXTS:
-        df = pd.read_excel(path, sheet_name=sheet or 0, header=header_row)
-    else:
-        df = _read_csv(path, header_row)
+    df = _read_any(path, sheet, header_row)
     if MAX_ROWS and len(df) > MAX_ROWS:
         df = df.head(MAX_ROWS)
     return df
@@ -124,19 +223,14 @@ PROBE_COLS = 64
 
 
 def _read_raw(path, sheet, rows):
-    """不套標題列，原封不動讀前幾列 —— 用來猜欄位名稱在哪一列"""
+    """不套標題列，原封不動讀前幾列 —— 用來猜欄位名稱在哪一列
+
+    純文字檔一定要自己給欄位數：pandas 是拿第一行來決定有幾欄，
+    而抬頭那行往往只有一格，後面真正的欄位名稱那行就會整個被吃掉。
+    """
     ext = os.path.splitext(path)[1].lower()
-    if ext in EXCEL_EXTS:
-        return pd.read_excel(path, sheet_name=sheet or 0, header=None, nrows=rows)
-    # CSV 一定要自己給欄位數：pandas 是拿第一行來決定有幾欄，
-    # 而抬頭那行往往只有一格，後面真正的欄位名稱那行就會整個被吃掉。
-    for encoding in settings.get("data.csv_encodings", ["utf-8-sig", "cp950"]):
-        try:
-            return pd.read_csv(path, header=None, nrows=rows, encoding=encoding,
-                               names=range(PROBE_COLS), engine="python")
-        except UnicodeDecodeError:
-            continue
-    raise ValueError("無法判斷這個 CSV 的編碼")
+    names = None if (ext in EXCEL_EXTS and _sniff(path) != "text") else range(PROBE_COLS)
+    return _read_any(path, sheet, header_row=None, nrows=rows, names=names)
 
 
 def detect_header_row(path, sheet=None, scan=None):
@@ -176,10 +270,14 @@ def detect_header_row(path, sheet=None, scan=None):
 
 
 def list_sheets(path):
+    """有哪些工作表。不是真的 Excel（HTML／純文字偽裝的）就回空清單"""
     ext = os.path.splitext(path)[1].lower()
-    if ext in EXCEL_EXTS:
+    if ext not in EXCEL_EXTS or _sniff(path) not in ("xlsx", "xls"):
+        return []
+    try:
         return pd.ExcelFile(path).sheet_names
-    return []
+    except Exception:
+        return []      # 讀不到工作表清單不該擋住匯入，後面讀內容時才報錯
 
 
 # --------------------------------------------------------------- 正規化
