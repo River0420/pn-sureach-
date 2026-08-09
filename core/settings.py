@@ -24,9 +24,12 @@ DEFAULTS = {
         # 按鍵名稱，macOS 和 Windows 通用：space / return / esc / tab /
         # f1~f12 / a~z。程式會自己翻成各平台的鍵碼。
         "key": "space",
-        # 可填 cmd(win) / alt(option) / ctrl / shift，可複選
-        "modifiers": ["alt"],
-        # 留空字串代表自動產生（macOS 顯示 ⌥Space，Windows 顯示 Alt+Space）
+        # 可填 cmd(win) / alt(option) / ctrl / shift，可複選。
+        # 預設用三顆是刻意的：Alt+Space 在 Windows 上是系統的視窗選單，
+        # 也是很多常駐工具（輸入法、截圖、啟動器）搶著註冊的熱門組合，
+        # 加一顆 Shift 幾乎就不會撞到了。
+        "modifiers": ["shift", "alt"],
+        # 留空字串代表自動產生（macOS 顯示 ⌥⇧Space，Windows 顯示 Alt+Shift+Space）
         "label": "",
     },
 

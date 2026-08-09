@@ -5,7 +5,7 @@ macOS 選單列 / Windows 工作列常駐工具。按熱鍵叫出查詢視窗，
 資料來自本機的 Excel / CSV，不連外網。
 
 ```
-⌥Space / Alt+Space   叫出視窗
+⌥⇧Space / Shift+Alt+Space   叫出視窗
 打字                 直接找，不用按 return
 ↑ ↓                  選
 return               看這一筆的完整資料
