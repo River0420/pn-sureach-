@@ -36,9 +36,17 @@ MODE_DETAIL = "detail"       # 點進去看某一筆的完整資料
 
 
 def summary_text(result):
-    """清單右邊那行摘要 —— 取前幾個欄位的值，讓人不用點進去就看得到重點"""
+    """清單右邊那行摘要 —— 取前幾個欄位的值，讓人不用點進去就看得到重點
+
+    這一行的價格常常是使用者唯一會看的東西（根本不會按 return），
+    所以「這個料號還有別筆」一定要在這裡就講，不能等進了詳細畫面。
+    直接接在文字後面，不另外做 widget —— 清單那幾列是常駐的，
+    每次搜尋多建 widget 打字就會頓。
+    """
     values = [v for _, v in (result.get("_fields") or []) if v]
-    return LIST_SEP.join(values[:LIST_FIELDS])
+    text = LIST_SEP.join(values[:LIST_FIELDS])
+    dup = result.get("_dup", 1)
+    return f"{text}{LIST_SEP}{dup} 筆" if dup > 1 else text
 
 
 class ResultRow(QFrame):
@@ -108,11 +116,13 @@ class PopupWindow(QWidget):
        打字會有黏滯感。
     """
 
-    def __init__(self, on_search, on_status, on_open=None):
+    def __init__(self, on_search, on_status, on_open=None, on_variant=None):
         super().__init__()
         self.on_search = on_search
         self.on_status = on_status
         self.on_open = on_open           # 進到詳細畫面時通知外面（目前只給測試用）
+        # 重複料號要看第幾筆：(料號, 第幾筆) -> 結果。沒接的話左右鍵就不作用。
+        self.on_variant = on_variant
         self._results = []
         self._sel = 0
         self._mode = MODE_MESSAGE
@@ -291,11 +301,14 @@ class PopupWindow(QWidget):
         result_view.fill(self.body, self._results[self._sel],
                          content_width=WIDTH - 2 * PAD_X)
         total = len(self._results)
+        parts = []
         if total > 1:
-            self.foot.setText(f"第 {self._sel + 1} / {total} 筆　·　"
-                              f"↑↓ 換一筆　·　esc 回清單")
-        else:
-            self.foot.setText("esc 回清單")
+            parts.append(f"第 {self._sel + 1} / {total} 筆")
+            parts.append("↑↓ 換一筆")
+        if self._results[self._sel].get("_dup", 1) > 1:
+            parts.append("← → 看這個料號的其他列")
+        parts.append("esc 回清單")
+        self.foot.setText("　·　".join(parts))
         self.foot.show()
         self._fit()
         if self.on_open:
@@ -345,6 +358,28 @@ class PopupWindow(QWidget):
             self.show_detail(index)     # 詳細畫面上下鍵直接換下一筆，不用退回清單
         return True
 
+    def _switch_variant(self, delta):
+        """同一個料號有好幾列時，左右鍵在那幾列之間換
+
+        只在詳細畫面有作用。清單畫面的左右鍵要留給輸入框移動游標。
+        """
+        if self._mode != MODE_DETAIL or not self._results or not self.on_variant:
+            return False
+        data = self._results[self._sel]
+        total = data.get("_dup", 1)
+        if total <= 1:
+            return False
+        at = (data.get("_dup_at", 0) + delta) % total
+        try:
+            fresh = self.on_variant(data["_key"], at)
+        except Exception:
+            return False
+        if not fresh:
+            return False
+        self._results[self._sel] = fresh
+        self.show_detail(self._sel)
+        return True
+
     def _enter_detail(self):
         if self._mode == MODE_LIST and self._results:
             self.show_detail(self._sel)
@@ -372,6 +407,10 @@ class PopupWindow(QWidget):
             if key == Qt.Key_Down and self._select(self._sel + 1):
                 return True
             if key == Qt.Key_Up and self._select(self._sel - 1):
+                return True
+            if key == Qt.Key_Right and self._switch_variant(1):
+                return True
+            if key == Qt.Key_Left and self._switch_variant(-1):
                 return True
             if key == Qt.Key_Escape and self._back():
                 return True

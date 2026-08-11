@@ -89,6 +89,12 @@ def fill(body, data, label_width=None, content_width=0):
     head.addWidget(ElidingLabel(data["_key"], "partNumber", max_width=key_room))
     if SOURCE_BADGE:
         head.addWidget(QLabel(SOURCE_BADGE, objectName="badge"))
+    # 同一個料號在檔案裡有好幾列（階梯報價、不同批號…）。
+    # 使用者正要抄下面那個價格，這一刻不講就沒有第二次機會了。
+    dup = data.get("_dup", 1)
+    if dup > 1:
+        head.addWidget(QLabel(f"{data.get('_dup_at', 0) + 1} / {dup} 筆",
+                              objectName="badge"))
     head.addStretch()
     body.addLayout(head)
 

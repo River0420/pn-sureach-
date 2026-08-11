@@ -121,7 +121,15 @@ def _guess_sep(text):
     return best
 
 
-def _read_csv(path, header_row, nrows=None, names=None):
+def _str_dtype(str_columns):
+    """要強制當文字讀的欄位 —— 見 _read_any 的說明
+
+    欄位不存在時 pandas 會安靜忽略，所以不用先確認欄位在不在。
+    """
+    return {c: str for c in str_columns} if str_columns else None
+
+
+def _read_csv(path, header_row, nrows=None, names=None, str_columns=None):
     """純文字表格：編碼自己試，分隔符號自己判斷"""
     text = _decode(path)
     guess = _guess_sep(text)
@@ -129,20 +137,22 @@ def _read_csv(path, header_row, nrows=None, names=None):
     for sep in [guess] + [s for s in _SEPARATORS if s != guess]:
         try:
             return pd.read_csv(io.StringIO(text), header=header_row, nrows=nrows,
-                               names=names, sep=sep, engine="python")
+                               names=names, sep=sep, engine="python",
+                               dtype=_str_dtype(str_columns))
         except Exception as e:
             last = e
     raise last or ValueError("這個檔案的分隔符號認不出來")
 
 
-def _read_html(path, header_row, nrows=None):
+def _read_html(path, header_row, nrows=None, str_columns=None):
     """把 HTML 表格當成試算表讀 —— 取頁面上最大的那個 <table>
 
     一定要自己先解碼再交給 pandas。直接把路徑丟進去的話它會用系統預設編碼，
     Big5 的報表會整片變成亂碼 —— 而且不會報錯，只是欄位名稱全是問號。
     """
     try:
-        tables = pd.read_html(io.StringIO(_decode(path)), header=header_row)
+        tables = pd.read_html(io.StringIO(_decode(path)), header=header_row,
+                              converters=_str_dtype(str_columns))
     except ImportError:
         raise ValueError(
             "這個檔案其實是 HTML 表格（副檔名寫 .xls 而已），"
@@ -154,10 +164,16 @@ def _read_html(path, header_row, nrows=None):
     return df.head(nrows) if nrows else df
 
 
-def _read_any(path, sheet=None, header_row=0, nrows=None, names=None):
+def _read_any(path, sheet=None, header_row=0, nrows=None, names=None,
+              str_columns=None):
     """統一入口：不管副檔名寫什麼，用檔案真正的格式去讀
 
     header_row 傳 None 代表「不要套欄位名稱」（猜標題列時用）。
+
+    str_columns 是「這幾欄一律當文字」。料號欄一定要走這條 —— 否則
+    純數字料號會被 pandas 讀成數字：0012345 掉成 12345（前導零沒了），
+    16 位以上的還會因為浮點數精度直接變成另一個號碼。這種錯不會報錯，
+    只會安靜地顯示一個錯的料號。
     """
     ext = os.path.splitext(path)[1].lower()
     kind = _sniff(path) if ext in EXCEL_EXTS else "text"
@@ -165,7 +181,8 @@ def _read_any(path, sheet=None, header_row=0, nrows=None, names=None):
     if kind in ("xlsx", "xls"):
         try:
             return pd.read_excel(path, sheet_name=sheet or 0,
-                                 header=header_row, nrows=nrows)
+                                 header=header_row, nrows=nrows,
+                                 dtype=_str_dtype(str_columns))
         except ImportError as e:
             # pandas 讀舊版 .xls 要另外裝 xlrd，訊息是英文的而且沒講怎麼辦
             if "xlrd" in str(e):
@@ -174,22 +191,24 @@ def _read_any(path, sheet=None, header_row=0, nrows=None, names=None):
                     "最快的解法：用 Excel 開啟後「另存新檔」成 .xlsx 再匯入。") from e
             raise
     if kind == "html":
-        return _read_html(path, header_row, nrows)
-    return _read_csv(path, header_row, nrows=nrows, names=names)
+        return _read_html(path, header_row, nrows, str_columns=str_columns)
+    return _read_csv(path, header_row, nrows=nrows, names=names,
+                     str_columns=str_columns)
 
 
-def read_table(path, sheet=None, header_row=0):
-    df = _read_any(path, sheet, header_row)
+def read_table(path, sheet=None, header_row=0, key_column=None):
+    df = _read_any(path, sheet, header_row,
+                   str_columns=[key_column] if key_column else None)
     if MAX_ROWS and len(df) > MAX_ROWS:
         df = df.head(MAX_ROWS)
     return df
 
 
-def _cache_key(path, sheet, header_row):
+def _cache_key(path, sheet, header_row, key_column=None):
     stat = os.stat(path)
     raw = "|".join(str(x) for x in (
         CACHE_VERSION, os.path.abspath(path), stat.st_mtime_ns, stat.st_size,
-        sheet, header_row, MAX_ROWS, pd.__version__,
+        sheet, header_row, key_column, MAX_ROWS, pd.__version__,
     ))
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()
 
@@ -208,19 +227,22 @@ def _prune_cache():
         pass
 
 
-def read_table_cached(path, sheet=None, header_row=0):
+def read_table_cached(path, sheet=None, header_row=0, key_column=None):
     """解析過的表格存成 pickle，檔案沒變動就直接讀快取
 
     Excel 解析是整個流程最慢的一段（10 萬列約 2.4 秒），
     快取之後第二次開機幾乎是瞬間。來源檔一改動 key 就變了，不會讀到舊資料。
+    key_column 也進 key —— 換了對照欄位，讀法就不一樣（那一欄要當文字）。
     """
     if not settings.get("data.cache", True):
-        return read_table(path, sheet, header_row)
+        return read_table(path, sheet, header_row, key_column)
 
     try:
-        cache_path = os.path.join(paths.CACHE_DIR, _cache_key(path, sheet, header_row) + ".pkl")
+        cache_path = os.path.join(
+            paths.CACHE_DIR,
+            _cache_key(path, sheet, header_row, key_column) + ".pkl")
     except OSError:
-        return read_table(path, sheet, header_row)
+        return read_table(path, sheet, header_row, key_column)
 
     if os.path.exists(cache_path):
         try:
@@ -233,7 +255,7 @@ def read_table_cached(path, sheet=None, header_row=0):
             except OSError:
                 pass
 
-    df = read_table(path, sheet, header_row)
+    df = read_table(path, sheet, header_row, key_column)
     try:
         paths.ensure(paths.CACHE_DIR)
         df.to_pickle(cache_path)
@@ -392,7 +414,12 @@ def build_indexes(df, key_column):
     刻意用 .tolist() 先把整欄拉成 python list 再跑迴圈：
     逐列 df.iloc[i][col] 取值在 10 萬列會多花 1.5 秒，這樣只要 0.1 秒。
 
-    回傳 (精確索引, 去符號索引, 去符號 -> 原始寫法)。重複料號取最後一筆。
+    回傳 (精確索引, 去符號索引, 去符號 -> 原始寫法)。
+
+    索引的值是「列號清單」，不是單一列號。同一個料號出現好幾次是常態
+    ——階梯報價、不同批號、改版沒刪舊列——以前只留最後一筆，另外幾筆
+    等於不存在，而使用者在查價的那一刻不會知道。清單依出現順序，
+    預設仍然顯示最後一筆（維持原本行為），但至少數得出來有幾筆。
     """
     exact, loose_index, display = {}, {}, {}
     if key_column not in df.columns:
@@ -403,9 +430,9 @@ def build_indexes(df, key_column):
         k = norm(value)
         if not k:
             continue
-        exact[k] = pos
+        exact.setdefault(k, []).append(pos)
         lk = _NOISE.sub("", k) or k
-        loose_index[lk] = pos
+        loose_index.setdefault(lk, []).append(pos)
         if lk not in display:
             display[lk] = str(value).strip()
     return exact, loose_index, display
@@ -508,12 +535,13 @@ def build_snapshot():
         if not path or not os.path.exists(path):
             errors.append(f"{name}：找不到檔案")
             continue
+        key = s.get("key_column")
         try:
-            df = read_table_cached(path, s.get("sheet"), s.get("header_row", 0))
+            df = read_table_cached(path, s.get("sheet"),
+                                   s.get("header_row", 0), key)
         except Exception as e:
             errors.append(f"{name}：讀取失敗（{e}）")
             continue
-        key = s.get("key_column")
         if key not in df.columns:
             errors.append(f"{name}：找不到料號欄位「{key}」")
             continue
@@ -594,15 +622,33 @@ class LocalPriceBook:
         names = {s["id"]: s["name"] for s in snap.sources}
         return field_labels(snap.config.get("display_columns", []), names)
 
-    def _rows_for(self, index_name, key):
-        rows = {}
+    def _rows_for(self, index_name, key, variant=-1):
+        """找出這個 key 在每個來源檔對到哪一列
+
+        索引存的是列號清單（同一個料號可能出現好幾次）。variant 是要看
+        第幾筆，-1 代表最後一筆 —— 這是原本的行為，不要改掉。
+
+        每個檔案的重複筆數不一樣（報價單有 3 筆、庫存表只有 1 筆），
+        所以 variant 會被夾在各自的範圍內：庫存表永遠顯示它那唯一一筆。
+
+        回傳 (每個來源的那一列, 最多重複幾筆)，都沒對到就回 None。
+        """
+        rows, most = {}, 1
         for s in self._snap.sources:
-            pos = s[index_name].get(key)
-            rows[s["id"]] = None if pos is None else s["df"].iloc[pos]
-        return rows if any(r is not None for r in rows.values()) else None
+            positions = s[index_name].get(key)
+            if not positions:
+                rows[s["id"]] = None
+                continue
+            most = max(most, len(positions))
+            i = variant if variant >= 0 else len(positions) + variant
+            i = max(0, min(i, len(positions) - 1))
+            rows[s["id"]] = s["df"].iloc[positions[i]]
+        if not any(r is not None for r in rows.values()):
+            return None
+        return rows, most
 
     # ---------- 對外 ----------
-    def _result(self, rows, typed=None):
+    def _result(self, rows, typed=None, dup=1, variant=-1):
         """把命中的那幾列組成彈窗要的字典
 
         lookup()（單筆精確查詢）和 search()（邊打邊找）共用這一段，
@@ -634,6 +680,10 @@ class LocalPriceBook:
             "_missing": [s["name"] for s in snap.sources if rows.get(s["id"]) is None],
             # 忽略符號差異才對上的話要講出來，不能讓人誤以為是逐字命中
             "_typed": typed if typed and typed != display_key else None,
+            # 這個料號在檔案裡總共幾列，現在顯示的是第幾列（從 0 算）。
+            # 1 就是正常情況，UI 只有 >1 才需要標出來。
+            "_dup": dup,
+            "_dup_at": (variant if variant >= 0 else dup + variant),
         }
 
     def candidates(self, text, limit=None):
@@ -699,23 +749,31 @@ class LocalPriceBook:
             return []
         out = []
         for key in self.candidates(text, limit):
-            rows = self._rows_for("loose_index", key)
-            if rows is not None:
-                out.append(self._result(rows))
+            found = self._rows_for("loose_index", key)
+            if found is not None:
+                rows, dup = found
+                out.append(self._result(rows, dup=dup))
         return out
 
-    def lookup(self, part_number: str):
+    def lookup(self, part_number: str, variant=-1):
+        """單筆精確查詢
+
+        variant 是「同一個料號的第幾筆」，-1 = 最後一筆（預設，也是原本的行為）。
+        重複的時候由呼叫端決定要看哪一筆。
+        """
         snap = self._snap
         if not snap.sources:
             return None
 
         loosened = False
         key = norm(part_number)
-        rows = self._rows_for("index", key) if key else None
-        if rows is None:
+        found = self._rows_for("index", key, variant) if key else None
+        if found is None:
             key = loose(part_number)
-            rows = self._rows_for("loose_index", key) if key else None
-            loosened = rows is not None
-        if rows is None:
+            found = self._rows_for("loose_index", key, variant) if key else None
+            loosened = found is not None
+        if found is None:
             return None
-        return self._result(rows, typed=part_number if loosened else None)
+        rows, dup = found
+        return self._result(rows, typed=part_number if loosened else None,
+                            dup=dup, variant=variant)

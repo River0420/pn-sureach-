@@ -830,7 +830,8 @@ class ImportDialog(QDialog):
         order = list(loaded[0].key_index.keys())
         best = max(order, key=lambda k: sum(1 for s in loaded if k in s.key_index))
         base = loaded[0]
-        raw = str(base.df.iloc[base.key_index[best]][base.key_column]).strip()
+        # key_index 存的是列號清單（重複料號會有好幾筆），取最後一筆
+        raw = str(base.df.iloc[base.key_index[best][-1]][base.key_column]).strip()
         return best, raw
 
     def _update_preview(self):
@@ -861,11 +862,11 @@ class ImportDialog(QDialog):
         fields = []
         for sid, column, text in labels:
             slot = self._slot(sid)
-            pos = slot.key_index.get(key) if slot else None
-            if slot is None or pos is None:
+            positions = slot.key_index.get(key) if slot else None
+            if slot is None or not positions:
                 fields.append((text, ""))
             else:
-                value = slot.df.iloc[pos][column]
+                value = slot.df.iloc[positions[-1]][column]
                 fields.append((text, local_lookup.format_value(value, column in slot.decimal)))
 
         missing = [s.name for s in loaded if key not in s.key_index]
@@ -914,10 +915,17 @@ class ImportDialog(QDialog):
         lines = [f"{s.mark} {s.name}　{len(s.df):,} 筆（料號欄位：{s.key_column}）" for s in loaded]
         message = "\n".join(lines) + f"\n\n查詢時會顯示：{shown}"
 
-        dupes = [s for s in loaded if len(s.key_index) < len(s.df)]
+        # 用索引本身去數才準：空白料號那幾列根本沒進索引，
+        # 拿「總列數 - 索引大小」會把它們也算成重複。
+        dupes = []
+        for s in loaded:
+            repeated = [v for v in s.key_index.values() if len(v) > 1]
+            if repeated:
+                dupes.append(f"{s.mark} {len(repeated):,} 個料號共 "
+                             f"{sum(len(v) for v in repeated):,} 筆")
         if dupes:
-            detail = "、".join(f"{s.mark} {len(s.df) - len(s.key_index):,} 筆" for s in dupes)
-            message += f"\n\n注意：有重複料號（{detail}），查詢時只會顯示最後一筆。"
+            message += ("\n\n注意：有料號重複出現（" + "、".join(dupes) + "）。"
+                        "\n查詢時預設顯示最後一筆，畫面上會標出總共幾筆。")
 
         QMessageBox.information(self, "匯入完成", message)
         self.accept()

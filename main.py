@@ -137,6 +137,7 @@ def main():
     popup = PopupWindow(
         on_search=price_book.search,
         on_status=lambda: price_book.status,
+        on_variant=price_book.lookup,
     )
     # 先把視窗建好藏起來，第一次按熱鍵才不會慢半拍
     popup.prewarm()
