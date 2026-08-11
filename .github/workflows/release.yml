@@ -69,7 +69,9 @@ jobs:
           Copy-Item -Force "README.md" "$out/README.md"
           Copy-Item -Force "docs/怎麼用.txt" "$out/怎麼用.txt"
           if (-not (Test-Path "$out/$env:APP.exe")) { throw "沒有產生 exe" }
-          Compress-Archive -Path "$out/*" -DestinationPath $env:ZIP -Force
+          # 壓資料夾本身，不要壓 "$out/*" —— 後者解開會把幾百個檔案
+          # 直接倒進使用者的下載資料夾，找不到 exe 在哪
+          Compress-Archive -Path $out -DestinationPath $env:ZIP -Force
           "{0:N1} MB" -f ((Get-Item $env:ZIP).Length / 1MB) | Write-Host
 
       # 用內建的 gh，不引第三方 action —— 發布流程上的東西越少越好
