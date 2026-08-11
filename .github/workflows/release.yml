@@ -111,6 +111,19 @@ jobs:
       - name: 打包成 .app
         run: pyinstaller --noconfirm --clean packaging/macos.spec
 
+      # v1.0 出過的包漏了這個：偵測輔助使用權限的模組沒進去，
+      # 程式就以為自己不需要權限，跳過整個授權引導，改跳一個
+      # 叫使用者去改 settings.json 的訊息 —— 完全幫不上忙。
+      # 它是 pynput 的相依套件（不是 Quartz 的），CI 上沒人帶它進來。
+      # 這一步就是不讓同樣的東西再送出去一次。
+      - name: 檢查權限模組有沒有進到 .app 裡
+        run: |
+          F="dist/$APP.app/Contents/Frameworks"
+          for m in HIServices Quartz objc; do
+            test -d "$F/$m" || { echo "❌ .app 裡漏了 $m"; exit 1; }
+          done
+          echo "✓ 權限與熱鍵需要的原生模組都在"
+
       # 一定要用 ditto 不要用 zip：.app 裡面有 symlink 和延伸屬性，
       # 一般的 zip 壓完解開會壞掉，使用者只會看到「應用程式已損毀」。
       - name: 壓成一包

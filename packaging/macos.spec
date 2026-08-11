@@ -36,6 +36,17 @@ HIDDEN = [
     "lxml.etree",
     "html5lib",
     "pandas._libs.tslibs.base",
+    # pyobjc 的東西全部明寫。core/permission.py 是在 try/except 裡 import
+    # ApplicationServices 的，PyInstaller 掃不到 —— 少了它，程式會以為
+    # 自己不需要輔助使用權限，於是跳過整個授權引導，改跳一個叫使用者去改
+    # settings.json 的錯誤訊息。使用者完全不知道該做什麼。
+    # 這個 bug 在 v1.0 真的發生了。
+    "ApplicationServices",
+    "HIServices",
+    "Quartz",
+    "AppKit",
+    "Foundation",
+    "objc",
 ]
 
 EXCLUDES = [

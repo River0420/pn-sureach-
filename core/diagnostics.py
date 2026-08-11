@@ -170,7 +170,10 @@ def report(price_book=None, hotkey_state=None):
     add("")
     add("【資料】")
     try:
-        cfg = book_config.load()
+        # 還沒匯入過任何東西時 load() 回的是 None，不是空字典 ——
+        # 直接 .get() 會變成一句看不懂的 'NoneType' 錯誤，
+        # 而「還沒匯入」其實是全新安裝最normal的狀態，不該長得像故障。
+        cfg = book_config.load() or {}
         add(_row("設定檔來源數", len(cfg.get("sources", []))))
     except Exception as e:
         add(_row("設定檔", f"讀不到：{e}"))

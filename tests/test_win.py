@@ -253,5 +253,26 @@ ico = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
 check("assets/app.ico 有 commit 進來（CI 上沒有 Pillow 可以現產）",
       os.path.exists(ico), ico)
 
+
+
+# ---------------------------------------------------------------- 權限
+print("\n[權限] macOS 的授權引導不能靜靜失效")
+from core import permission
+
+if plat.MACOS:
+    check("ApplicationServices 載入得了（打包時最容易漏掉的一個）",
+          permission.AVAILABLE, f"AVAILABLE={permission.AVAILABLE}")
+    check("macOS 上 NEEDED 要是 True", permission.NEEDED)
+else:
+    check("非 macOS 不需要權限", not permission.NEEDED)
+
+# 就算偵測模組整個掛掉，macOS 上也不該退化成「叫使用者去改 settings.json」。
+# 這是 v1.0 真的發生過的事：打包漏了 ApplicationServices，
+# 程式以為自己不用權限，使用者看到一個完全幫不上忙的訊息。
+src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "main.py"), encoding="utf-8").read()
+check("熱鍵掛不上時，macOS 走的是權限引導不是改設定檔",
+      "show_permission_help() if plat.MACOS else show_hotkey_help()" in src)
+
 print(f"\n===== {PASS} 過 / {FAIL} 失敗 =====")
 sys.exit(1 if FAIL else 0)

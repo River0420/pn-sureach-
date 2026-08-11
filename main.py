@@ -402,7 +402,11 @@ def main():
         # Windows：不需要權限，直接註冊。失敗的話選單會出現警告項目，
         # 而且工作列圖示 → 查詢照樣能用，不會變成完全不能操作的狀態。
         if not start_hotkey():
-            show_hotkey_help()
+            # 走到這裡卻又是 macOS，代表偵測權限的模組沒載入成功
+            # （打包漏掉 ApplicationServices 就會這樣）。
+            # macOS 上熱鍵掛不上幾乎一定是權限問題，不要拿「去改 settings.json」
+            # 那套說詞去誤導使用者 —— 照樣走權限引導。
+            show_permission_help() if plat.MACOS else show_hotkey_help()
 
     print(f"已啟動，常駐選單列。按 {hotkey.HOTKEY_LABEL} 查詢。", flush=True)
 

@@ -8,3 +8,7 @@ lxml>=4.9            # 有些 .xls 其實是 HTML 表格換副檔名
 pyperclip>=1.8
 pyobjc-framework-Cocoa>=10.0; sys_platform == "darwin"
 pyobjc-framework-Quartz>=10.0; sys_platform == "darwin"
+# 偵測「有沒有輔助使用權限」用的（AXIsProcessTrusted）。它本來是 Quartz 的
+# 相依套件，會被順便裝進來 —— 但打包時 PyInstaller 不一定掃得到，
+# 少了它整個權限引導流程會靜靜地失效。明寫出來。
+pyobjc-framework-ApplicationServices>=10.0; sys_platform == "darwin"
