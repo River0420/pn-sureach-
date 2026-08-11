@@ -6,6 +6,9 @@
 
 name: Windows 打包
 
+env:
+  APP: PN Anywhere
+
 on:
   push:
     branches: [windows, main]
@@ -52,22 +55,22 @@ jobs:
       - name: 附上設定檔與說明
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path "dist/料號查詢/data" | Out-Null
-          Copy-Item -Recurse -Force "data/*" "dist/料號查詢/data/" -ErrorAction SilentlyContinue
-          Copy-Item -Force "README.md" "dist/料號查詢/README.md"
-          Copy-Item -Force "docs/怎麼用.txt" "dist/料號查詢/怎麼用.txt"
+          New-Item -ItemType Directory -Force -Path "dist/$env:APP/data" | Out-Null
+          Copy-Item -Recurse -Force "data/*" "dist/$env:APP/data/" -ErrorAction SilentlyContinue
+          Copy-Item -Force "README.md" "dist/$env:APP/README.md"
+          Copy-Item -Force "docs/怎麼用.txt" "dist/$env:APP/怎麼用.txt"
 
       - name: 快速檢查打包結果
         shell: pwsh
         run: |
-          $exe = "dist/料號查詢/料號查詢.exe"
+          $exe = "dist/$env:APP/$env:APP.exe"
           if (-not (Test-Path $exe)) { throw "沒有產生 exe" }
-          $size = (Get-ChildItem -Recurse "dist/料號查詢" | Measure-Object -Property Length -Sum).Sum / 1MB
+          $size = (Get-ChildItem -Recurse "dist/$env:APP" | Measure-Object -Property Length -Sum).Sum / 1MB
           Write-Host ("整包大小：{0:N1} MB" -f $size)
-          Get-ChildItem "dist/料號查詢/*.exe" | Format-Table Name, Length
+          Get-ChildItem "dist/$env:APP/*.exe" | Format-Table Name, Length
 
       - uses: actions/upload-artifact@v4
         with:
-          name: 料號查詢-Windows
-          path: dist/料號查詢
+          name: ${{ env.APP }}-Windows
+          path: dist/${{ env.APP }}
           retention-days: 30

@@ -1,8 +1,8 @@
 # PyInstaller 打包設定（Windows）
 #
 # 一次產出兩個執行檔，共用同一份執行環境（只佔一份空間）：
-#   料號查詢.exe        正常使用，沒有黑色視窗
-#   料號查詢-診斷版.exe  會開一個終端機視窗，把每一步印出來
+#   PN Anywhere.exe        正常使用，沒有黑色視窗
+#   PN Anywhere-診斷版.exe  會開一個終端機視窗，把每一步印出來
 #
 # 為什麼要有診斷版：正常版如果在別人的電腦上啟動失敗，畫面上什麼都不會有，
 # 使用者只看到「雙擊沒反應」。診斷版死在哪一行，那一行就會留在螢幕上。
@@ -17,6 +17,9 @@
 import os
 
 ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
+
+APP = "PN Anywhere"
+ICON = os.path.join(ROOT, "assets", "app.ico")
 
 # pandas 的 Excel 引擎是執行時才動態 import 的，PyInstaller 掃不到，要自己講
 HIDDEN = [
@@ -55,13 +58,14 @@ gui = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="料號查詢",
+    name=APP,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,              # UPX 壓縮很容易被防毒誤判成病毒，不要用
     console=False,          # 正常使用不要黑色視窗
     disable_windowed_traceback=False,
+    icon=ICON,
 )
 
 console = EXE(
@@ -69,12 +73,13 @@ console = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="料號查詢-診斷版",
+    name=f"{APP}-診斷版",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
     console=True,           # 這個就是要看得到訊息
+    icon=ICON,
 )
 
 coll = COLLECT(
@@ -84,5 +89,5 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=False,
-    name="料號查詢",
+    name=APP,
 )

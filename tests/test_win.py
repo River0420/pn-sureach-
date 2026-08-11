@@ -220,5 +220,38 @@ check("舊的 macOS 鍵碼反查得回名稱", plat.key_name(120) == "f2")
 check("亂寫的鍵名會退回 space", plat.key_name("不存在的鍵") == "space")
 check("亂寫的修飾鍵會被丟掉", plat.mod_names(["alt", "香蕉"]) == ["alt"])
 
+
+
+# ---------------------------------------------------------------- 圖示
+print("\n[圖示] 常駐圖示在兩個平台上的行為")
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from PySide6.QtWidgets import QApplication
+_app = QApplication.instance() or QApplication(sys.argv)
+from core import plat
+from ui import appicon
+
+icon = appicon.tray_icon()
+check("圖示不是空的", not icon.isNull())
+check("每個尺寸都畫得出來",
+      all(not icon.pixmap(s, s).isNull() for s in appicon.TRAY_SIZES))
+check("mac 是 template image（系統自己上色）",
+      icon.isMask() if plat.MACOS else not icon.isMask(),
+      f"isMask={icon.isMask()} on {plat.NAME}")
+
+pix = appicon.draw(16, "#000000")
+check("16px 畫得出來且是方的", pix.width() == 16 and pix.height() == 16,
+      f"{pix.width()}x{pix.height()}")
+check("16px 沒有 pin-1 圓點（那顆點在這個尺寸只會變髒）",
+      appicon.draw(16, "#000000").toImage() != appicon.draw(24, "#000000")
+      .scaled(16, 16).toImage())
+
+big = appicon.app_icon()
+check("上色版也生得出來", not big.isNull() and not big.pixmap(256, 256).isNull())
+
+ico = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                   "assets", "app.ico")
+check("assets/app.ico 有 commit 進來（CI 上沒有 Pillow 可以現產）",
+      os.path.exists(ico), ico)
+
 print(f"\n===== {PASS} 過 / {FAIL} 失敗 =====")
 sys.exit(1 if FAIL else 0)

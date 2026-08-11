@@ -3,15 +3,15 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QFontDatabase, QIcon, QPainter, QPixmap
+from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Signal
+from PySide6.QtGui import QAction, QFontDatabase
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 import pyperclip
 
 from core import applog, hotkey, local_lookup, paths, permission, plat, settings
 from core.local_lookup import LocalPriceBook
-from ui import native_window, popup as popup_mod, style
+from ui import appicon, native_window, popup as popup_mod, style
 from ui.diag_dialog import DiagDialog
 from ui.import_dialog import ImportDialog
 from ui.popup import PopupWindow
@@ -34,22 +34,7 @@ def acquire_single_instance():
     return sock
 
 
-def make_icon():
-    pix = QPixmap(44, 44)
-    pix.fill(Qt.transparent)
-    p = QPainter(pix)
-    p.setRenderHint(QPainter.Antialiasing)
-    p.setBrush(QColor(style.ACCENT))
-    p.setPen(Qt.NoPen)
-    p.drawRoundedRect(3, 3, 38, 38, 11, 11)
-    p.setPen(QColor("white"))
-    f = QFont()
-    f.setPointSize(20)
-    f.setWeight(QFont.Bold)
-    p.setFont(f)
-    p.drawText(pix.rect(), Qt.AlignCenter, "P")
-    p.end()
-    return QIcon(pix)
+APP_NAME = "PN Anywhere"
 
 
 def install_crash_handler():
@@ -124,6 +109,9 @@ def main():
     settings.write_defaults_if_missing()
 
     app = QApplication(sys.argv)
+    app.setApplicationName(APP_NAME)
+    app.setApplicationDisplayName(APP_NAME)
+    app.setWindowIcon(appicon.app_icon())
     app.setQuitOnLastWindowClosed(False)
     # 用系統字體物件，不要用字體名稱字串 —— 名稱對不上時 Qt 會去掃整份字體
     # 清單找替代品，開機平白多花 100ms 以上
@@ -153,7 +141,7 @@ def main():
         state["loading"] = True
         state["announce"] = announce
         price_book.mark_loading()
-        tray.setToolTip("料號查詢小工具 —— 載入中…")
+        tray.setToolTip(f"{APP_NAME} —— 載入中…")
         act_reload.setEnabled(False)
         QThreadPool.globalInstance().start(BookLoader(load_signals))
 
@@ -165,14 +153,15 @@ def main():
 
         if snapshot.sources:
             rows = snapshot.row_count
-            tray.setToolTip(f"料號查詢小工具　·　{rows:,} 筆資料")
+            tray.setToolTip(f"{APP_NAME}　·　{rows:,} 筆資料")
             print(f"已載入 {len(snapshot.sources)} 個檔案、{rows:,} 筆資料"
                   f"（{snapshot.elapsed:.1f} 秒）", flush=True)
             if announce:
-                tray.showMessage("料號查詢小工具",
-                                 f"已重新載入 {rows:,} 筆資料", make_icon(), 3000)
+                tray.showMessage(APP_NAME,
+                                 f"已重新載入 {rows:,} 筆資料",
+                                 appicon.tray_icon(), 3000)
         else:
-            tray.setToolTip("料號查詢小工具　·　尚未匯入 Price Book")
+            tray.setToolTip(f"{APP_NAME}　·　尚未匯入 Price Book")
 
         # 讀檔失敗過去是靜默 continue，使用者只看到「尚未匯入」卻不知道為什麼
         if snapshot.errors:
@@ -325,9 +314,9 @@ def main():
             if trusted:
                 start_hotkey()
                 tray.showMessage(
-                    "料號查詢小工具",
+                    APP_NAME,
                     f"權限已開啟，現在可以按 {hotkey.HOTKEY_LABEL} 查詢了",
-                    make_icon(),
+                    appicon.tray_icon(),
                     4000,
                 )
             else:
@@ -348,8 +337,17 @@ def main():
         app.quit()
 
     # ---------------- 選單列 ----------------
-    tray = QSystemTrayIcon(make_icon())
-    tray.setToolTip("料號查詢小工具")
+    tray = QSystemTrayIcon(appicon.tray_icon())
+    tray.setToolTip(APP_NAME)
+
+    # macOS 的 template image 由系統自己換色，不用管。Windows 沒有那套，
+    # 使用者從淺色主題切到深色（或反過來）之後圖示會變成看不見，要重畫。
+    if not plat.MACOS:
+        try:
+            app.styleHints().colorSchemeChanged.connect(
+                lambda _scheme: tray.setIcon(appicon.tray_icon()))
+        except Exception:
+            pass
     menu = QMenu()
     act_query = QAction(f"查詢          {hotkey.HOTKEY_LABEL}", menu)
     act_query.triggered.connect(open_popup)

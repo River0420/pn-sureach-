@@ -1,4 +1,4 @@
-# 料號查詢小工具
+# PN Anywhere
 
 macOS 選單列 / Windows 工作列常駐工具。按熱鍵叫出查詢視窗，**打字就直接找**，
 下面即時列出最相近的 6 筆（含價格、庫存摘要），按 `return` 才進到單筆完整資料。
@@ -24,7 +24,7 @@ Windows 版的程式碼已完成，但尚未在真正的 Windows 上跑過 —�
 pip3 install -r requirements.txt
 ```
 
-之後雙擊 `啟動料號查詢.command`，或：
+之後雙擊 `啟動 PN Anywhere.command`，或：
 
 ```bash
 python3 main.py
@@ -79,6 +79,7 @@ core/            完全不依賴 Qt，可以在背景執行緒整包跑完
   hotkey_win.py      └ Windows：RegisterHotKey
   permission.py    輔助使用權限（只有 macOS 需要）
 ui/              Qt 介面
+  appicon.py       程式圖示（畫的，不是圖檔；mac 走 template image）
   style.py         QSS，由 settings 產生
   popup.py         熱鍵查詢視窗（清單 / 詳細兩個畫面）
   result_view.py   查詢結果的畫法（彈窗與匯入預覽共用）
@@ -102,6 +103,7 @@ main.py          組裝、選單列、背景載入、熱鍵生命週期
 | 不進 Dock / 工作列 | `NSApplicationActivationPolicyAccessory` | `Qt.Tool`（Qt 內建） |
 | 取得鍵盤焦點 | `makeKeyWindow`（不切換前景 App） | `SetForegroundWindow` |
 | 視窗陰影 | NSWindow 原生 | 沒有（用邊框＋圓角代替） |
+| 常駐圖示配色 | template image，系統自己上色 | 自己看主題挑，主題變了要重畫 |
 
 熱鍵失敗時兩邊都不會變成「按了沒反應」：選單會出現 `⚠︎ 熱鍵沒掛上…`，
 點進去有原因和換一組的做法，而且**點圖示 → 查詢照樣能用**。

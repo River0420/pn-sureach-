@@ -1,5 +1,5 @@
 #!/bin/bash
-# 雙擊這個檔案就能啟動料號查詢小工具
+# 雙擊這個檔案就能啟動PN Anywhere小工具
 cd "$(dirname "$0")"
 
 PY="${SOURCING_PYTHON:-python3}"
@@ -12,7 +12,7 @@ EOF
 )
 
 if "$PY" -c "import socket,sys; s=socket.socket(); sys.exit(0 if s.connect_ex(('127.0.0.1',$PORT))==0 else 1)" 2>/dev/null; then
-    echo "料號查詢小工具已經在執行中了。"
+    echo "PN Anywhere小工具已經在執行中了。"
     echo "→ 按 Option+空白鍵 就能查詢"
     echo ""
     echo "（這個視窗可以關掉）"
@@ -20,7 +20,7 @@ if "$PY" -c "import socket,sys; s=socket.socket(); sys.exit(0 if s.connect_ex(('
     exit 0
 fi
 
-echo "正在啟動料號查詢小工具…"
+echo "正在啟動PN Anywhere小工具…"
 nohup "$PY" -u main.py > sourcing-tool.log 2>&1 &
 APP_PID=$!
 sleep 3
