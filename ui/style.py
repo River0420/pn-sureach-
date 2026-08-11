@@ -235,6 +235,36 @@ QPushButton#primary:disabled {{
     border-color: {BORDER};
     color: {TEXT_MUTED};
 }}
+/* 第一次啟動的引導視窗 */
+#welcomeTitle {{
+    font-size: 19px;
+    font-weight: 650;
+    color: {TEXT};
+}}
+#welcomeSub {{
+    font-size: 13px;
+    color: {TEXT_SOFT};
+}}
+#welcomeFoot {{
+    font-size: 12px;
+    color: {TEXT_MUTED};
+}}
+#stepBadge {{
+    background-color: {ACCENT_SOFT};
+    color: {ACCENT};
+    border-radius: 13px;
+    font-size: 12px;
+    font-weight: 700;
+}}
+#stepTitle {{
+    font-size: 14px;
+    font-weight: 600;
+    color: {TEXT};
+}}
+#stepDetail {{
+    font-size: 12.5px;
+    color: {TEXT_SOFT};
+}}
 #colScroll {{
     background-color: {SURFACE};
     border: 1px solid {BORDER};

@@ -150,15 +150,21 @@ footer a{color:var(--soft)}
   </a>
 
   <a class="btn btn-mac"
-     href="https://github.com/River0420/pn-sureach-/releases/latest/download/PN-Anywhere-macOS.zip">
+     href="https://github.com/River0420/pn-sureach-/releases/latest/download/PN-Anywhere-macOS-AppleSilicon.zip">
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M16.4 12.8c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.15-2.8.85-3.5.85-.7 0-1.85-.83-3.05-.8-1.55.02-3 .9-3.8 2.3-1.63 2.82-.42 7 1.17 9.3.78 1.12 1.7 2.38 2.9 2.34 1.17-.05 1.6-.75 3.02-.75 1.4 0 1.8.75 3.03.73 1.25-.02 2.04-1.14 2.8-2.27.88-1.3 1.25-2.56 1.27-2.63-.03-.01-2.43-.93-2.45-3.7zM14.1 5.1c.64-.78 1.07-1.86.95-2.94-.92.04-2.03.61-2.69 1.38-.59.69-1.11 1.79-.97 2.85 1.02.08 2.07-.52 2.71-1.29z"/>
     </svg>
     <span class="lines"><span class="top">下載 macOS 版</span>
-      <span class="sub">.zip　·　拖進「應用程式」就好</span></span>
+      <span class="sub">.zip　·　Apple 晶片（M1～M4）</span></span>
   </a>
 </div>
 
+<p class="under">
+  Mac 是 Intel 的？用
+  <a href="https://github.com/River0420/pn-sureach-/releases/latest/download/PN-Anywhere-macOS-Intel.zip">
+    這一版</a>　·
+  分不出來就看左上角  →「關於這台 Mac」的「晶片」那行
+</p>
 <p class="under">
   兩個平台都不需要安裝 Python　·　<a href="https://github.com/River0420/pn-sureach-/releases">看所有版本</a>
 </p>
@@ -202,17 +208,46 @@ footer a{color:var(--soft)}
 <section>
   <h2>怎麼開始</h2>
   <ol class="steps">
-    <li><b>下載、解壓、打開。</b>Windows 雙擊 exe；macOS 拖進「應用程式」後<b>右鍵 →「打開」</b>。</li>
+    <li><b>下載、解壓、打開。</b>Windows 雙擊 exe；macOS 把 App 拖進「應用程式」再打開
+      —— 兩邊第一次都會被系統擋，看下面的說明。</li>
     <li><b>匯入你的 Excel。</b>點工作列／選單列的晶片圖示 →「匯入 Price Book」，最多三個檔案，選好要用哪一欄當料號。</li>
-    <li><b>按 <span class="kbd">Shift</span><span class="kbd">Alt</span><span class="kbd">Space</span>。</b>打字就開始找。<span class="kbd">↑↓</span> 選、<span class="kbd">Enter</span> 看完整資料、<span class="kbd">esc</span> 關掉。</li>
+    <li><b>按 <span class="kbd">Shift</span><span class="kbd">Alt</span><span class="kbd">Space</span></b>
+      （Mac 是 <span class="kbd">⇧</span><span class="kbd">⌥</span><span class="kbd">Space</span>，
+      ⌥ 就是 option/alt 那顆）。打字就開始找。
+      <span class="kbd">↑↓</span> 選、<span class="kbd">Enter</span> 看完整資料、
+      <span class="kbd">esc</span> 關掉。</li>
   </ol>
 
   <div class="note">
-    <b>第一次開會被系統擋下來，這是正常的。</b><br>
-    Windows 會跳「Windows 已保護您的電腦」→ 點「其他資訊」→「仍要執行」。<br>
-    macOS 會說「無法打開」→ 在 App 上按右鍵 →「打開」。<br>
-    兩個都是因為這個程式沒有買數位簽章（Windows 約 US$200／年、Apple US$99／年），
+    <b>第一次開一定會被系統擋下來，這是正常的。</b>
+    因為這個程式沒有買數位簽章（Windows 約 US$200／年、Apple US$99／年），
     不是程式有問題。
+
+    <div style="margin-top:14px">
+      <b>Windows</b><br>
+      跳出「Windows 已保護您的電腦」→ 點「<b>其他資訊</b>」→「<b>仍要執行</b>」。
+    </div>
+
+    <div style="margin-top:12px">
+      <b>macOS</b>（Sequoia 之後右鍵「打開」已經沒用了，要走這條）<br>
+      ① 跳出「Apple 無法驗證⋯」時，按「<b>完成</b>」<span style="color:var(--accent)">
+      （不要按丟到垃圾桶）</span><br>
+      ② 打開「系統設定」→「<b>隱私權與安全性</b>」<br>
+      ③ 捲到最下面的「安全性」區塊，會看到本程式被阻擋 → 按「<b>仍要打開</b>」<br>
+      ④ 再確認一次，輸入密碼或 Touch ID
+    </div>
+
+    <div style="margin-top:12px">
+      <b>macOS 還要多開一個權限</b>：全域熱鍵需要「輔助使用」。
+      程式第一次啟動時會自己跳出來引導你，跟著按就好。
+    </div>
+  </div>
+
+  <div class="note" style="border-left-color:var(--muted); margin-top:14px">
+    <b>打開之後畫面上不會有任何視窗 —— 這是正常的。</b><br>
+    它是常駐工具，只會在 macOS 的<b>選單列右上角</b>／Windows 的<b>工作列右下角</b>
+    多一顆晶片圖示（Windows 可能被摺疊在 <span class="kbd">^</span> 裡面）。
+    第一次啟動會跳一個引導視窗告訴你圖示在哪。
   </div>
 </section>
 

@@ -28,7 +28,8 @@ env:
   APP: PN Anywhere
   # 檔名不放空白，網址才不會變成 %20
   ZIP_WIN: PN-Anywhere-Windows.zip
-  ZIP_MAC: PN-Anywhere-macOS.zip
+  ZIP_MAC: PN-Anywhere-macOS-AppleSilicon.zip
+  ZIP_MAC_INTEL: PN-Anywhere-macOS-Intel.zip
 
 jobs:
   # 兩個平台各自打包，最後由 release job 收攏成同一個 Release。
@@ -85,7 +86,18 @@ jobs:
           retention-days: 1        # 只是給下一個 job 接手，不用留
 
   macos:
-    runs-on: macos-latest
+    # macos-latest 是 Apple 晶片，打出來的執行檔是 arm64 專用的 ——
+    # Intel Mac 拿到會完全無法啟動：沒有錯誤訊息、沒有圖示、什麼都沒有。
+    # 使用者只會覺得「這東西是壞的」。所以兩種架構都要出。
+    strategy:
+      fail-fast: false        # 一邊掛了另一邊還是要有東西可下載
+      matrix:
+        include:
+          - runner: macos-latest    # Apple 晶片（M1 之後）
+            arch: AppleSilicon
+          - runner: macos-13        # Intel
+            arch: Intel
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -124,20 +136,22 @@ jobs:
           done
           echo "✓ 權限與熱鍵需要的原生模組都在"
 
-      # 一定要用 ditto 不要用 zip：.app 裡面有 symlink 和延伸屬性，
-      # 一般的 zip 壓完解開會壞掉，使用者只會看到「應用程式已損毀」。
       - name: 壓成一包
         run: |
           test -d "dist/$APP.app" || { echo "沒有產生 .app"; exit 1; }
-          cp README.md "dist/README.md"
-          cp "docs/怎麼用.txt" "dist/怎麼用.txt"
-          ditto -c -k --sequesterRsrc --keepParent "dist/$APP.app" "$ZIP_MAC"
-          echo "macOS：$(du -h "$ZIP_MAC" | cut -f1)"
+          ZIP="PN-Anywhere-macOS-${{ matrix.arch }}.zip"
+          # 確認打出來的真的是這台機器的架構，不要出現 Intel 那包裡
+          # 裝的其實是 arm64 執行檔這種事
+          lipo -archs "dist/$APP.app/Contents/MacOS/$APP"
+          # 一定要用 ditto 不要用 zip：.app 裡面有 symlink 和延伸屬性，
+          # 一般的 zip 壓完解開會壞掉，使用者只會看到「應用程式已損毀」。
+          ditto -c -k --sequesterRsrc --keepParent "dist/$APP.app" "$ZIP"
+          echo "macOS ${{ matrix.arch }}：$(du -h "$ZIP" | cut -f1)"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: pack-macos
-          path: ${{ env.ZIP_MAC }}
+          name: pack-macos-${{ matrix.arch }}
+          path: PN-Anywhere-macOS-${{ matrix.arch }}.zip
           retention-days: 1
 
   release:
@@ -168,7 +182,8 @@ jobs:
           | | |
           |---|---|
           | **Windows** | [$ZIP_WIN](https://github.com/$REPO/releases/download/$TAG/$ZIP_WIN) |
-          | **macOS** | [$ZIP_MAC](https://github.com/$REPO/releases/download/$TAG/$ZIP_MAC) |
+          | **macOS**（Apple 晶片 M1～M4） | [$ZIP_MAC](https://github.com/$REPO/releases/download/$TAG/$ZIP_MAC) |
+          | **macOS**（Intel） | [$ZIP_MAC_INTEL](https://github.com/$REPO/releases/download/$TAG/$ZIP_MAC_INTEL) |
 
           不需要安裝 Python，解壓就能用。
 
@@ -177,11 +192,19 @@ jobs:
           第一次會跳「Windows 已保護您的電腦」—— 那是因為沒有付費的數位簽章。
           點「其他資訊」→「仍要執行」。
 
+          不確定自己是哪一種 Mac：左上角  →「關於這台 Mac」，看「晶片」那一行。
+
           ### macOS
-          解壓後把 \`$APP.app\` 拖進「應用程式」。
-          第一次要**右鍵 →「打開」**（直接雙擊會被系統擋下來），
-          同樣是因為沒有簽章。之後就能正常雙擊。
-          全域熱鍵需要「輔助使用」權限，程式會自己引導你去開。
+          解壓後把 \`$APP.app\` 拖進「應用程式」再打開。
+
+          第一次會跳「Apple 無法驗證⋯」。**macOS Sequoia 之後右鍵「打開」已經沒用了**，
+          要這樣做：
+          1. 按「**完成**」（不要按丟到垃圾桶）
+          2. 系統設定 →「**隱私權與安全性**」
+          3. 捲到最下面的「安全性」區塊 → 按「**仍要打開**」
+          4. 再確認一次
+
+          全域熱鍵需要「輔助使用」權限，程式第一次啟動會自己跳出來引導。
 
           ## 怎麼用
 

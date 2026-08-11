@@ -274,5 +274,35 @@ src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 check("熱鍵掛不上時，macOS 走的是權限引導不是改設定檔",
       "show_permission_help() if plat.MACOS else show_hotkey_help()" in src)
 
+
+
+# ---------------------------------------------------------------- 第一次啟動
+print("\n[第一次啟動] 不能讓使用者面對一片空白")
+from ui.welcome import WelcomeDialog
+
+_app2 = QApplication.instance() or QApplication(sys.argv)
+for needs in (True, False):
+    try:
+        d = WelcomeDialog(needs, lambda: None, lambda: None)
+        d.adjustSize()
+        check(f"引導視窗建得起來（needs_permission={needs}）",
+              d.width() > 300 and d.height() > 300, f"{d.width()}x{d.height()}")
+    except Exception as e:
+        check(f"引導視窗建得起來（needs_permission={needs}）", False,
+              f"{type(e).__name__}: {e}")
+
+check("有權限步驟時視窗比較高（多一列）",
+      WelcomeDialog(True, None, None).sizeHint().height()
+      > WelcomeDialog(False, None, None).sizeHint().height())
+
+# 這幾件事在 v1.0 都害使用者卡住過，寫成測試免得改著改著又掉了
+main_src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                             "main.py"), encoding="utf-8").read()
+check("第一次啟動的判斷在寫預設檔之前",
+      main_src.index("first_run = not os.path.exists")
+      < main_src.index("settings.write_defaults_if_missing()"))
+check("單一實例撞到時會跳視窗，不是靜靜結束",
+      "QMessageBox.information(" in main_src.split("lock = acquire_single_instance()")[1][:900])
+
 print(f"\n===== {PASS} 過 / {FAIL} 失敗 =====")
 sys.exit(1 if FAIL else 0)

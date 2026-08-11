@@ -14,6 +14,7 @@ from core.local_lookup import LocalPriceBook
 from ui import appicon, native_window, popup as popup_mod, style
 from ui.diag_dialog import DiagDialog
 from ui.import_dialog import ImportDialog
+from ui.welcome import WelcomeDialog
 from ui.popup import PopupWindow
 
 LOCK_PORT = settings.get("app.lock_port", 49731)
@@ -102,10 +103,9 @@ def main():
     install_crash_handler()
     print(f"=== 啟動（{plat.NAME}）===", flush=True)
 
-    lock = acquire_single_instance()
-    if lock is None:
-        print("已經有一個實例在執行了，這次不重複啟動。", flush=True)
-        return
+    # 有沒有設定檔，是判斷「這是不是第一次開」最可靠的訊號。
+    # 一定要在 write_defaults_if_missing() 之前問，那一行會把檔案建出來。
+    first_run = not os.path.exists(paths.SETTINGS_PATH)
     settings.write_defaults_if_missing()
 
     app = QApplication(sys.argv)
@@ -113,6 +113,27 @@ def main():
     app.setApplicationDisplayName(APP_NAME)
     app.setWindowIcon(appicon.app_icon())
     app.setQuitOnLastWindowClosed(False)
+
+    # 單一實例檢查要放在 QApplication 之後 —— 失敗的時候得跳得出視窗。
+    #
+    # 這裡原本是 print 一行然後 return。在終端機看得到，但雙擊 .app 或 exe
+    # 的使用者看到的是「什麼都沒發生」：沒視窗、沒圖示、沒訊息。
+    # 而且鎖是綁固定的 port，只要那個號碼被任何別的軟體佔走，
+    # 程式就會在完全沒有徵兆的情況下拒絕啟動。
+    # 沉默地失敗是最糟的失敗方式，一定要講出來。
+    lock = acquire_single_instance()
+    if lock is None:
+        print(f"綁不到 {LOCK_PORT} 埠，這次不啟動。", flush=True)
+        native_window.activate_app()
+        QMessageBox.information(
+            None, f"{APP_NAME} 已經在執行了",
+            f"看一下螢幕{'右上角的選單列' if plat.MACOS else '右下角的工作列'}，"
+            f"應該有一顆晶片圖示。\n\n"
+            f"如果找不到，可能是第 {LOCK_PORT} 號通訊埠被別的軟體佔走了"
+            f"（程式用它來避免自己被開兩次）。\n"
+            f"這種情況請改設定檔裡的 app.lock_port，換一個 49000～65000 的號碼：\n"
+            f"{paths.SETTINGS_PATH}")
+        return
     # 用系統字體物件，不要用字體名稱字串 —— 名稱對不上時 Qt 會去掃整份字體
     # 清單找替代品，開機平白多花 100ms 以上
     base_font = QFontDatabase.systemFont(QFontDatabase.GeneralFont)
@@ -409,6 +430,21 @@ def main():
             show_permission_help() if plat.MACOS else show_hotkey_help()
 
     print(f"已啟動，常駐選單列。按 {hotkey.HOTKEY_LABEL} 查詢。", flush=True)
+
+    # 第一次啟動：一定要有一個看得見的東西。
+    # 這是常駐工具，正常啟動的表現就是「什麼都沒發生」，
+    # 第一次拿到的人分不出那是成功還是壞了 —— 而他不會來問，只會放棄。
+    if first_run:
+        print("第一次啟動，顯示引導視窗。", flush=True)
+        native_window.activate_app()
+        welcome = WelcomeDialog(
+            needs_permission=plat.MACOS and not permission.is_trusted(),
+            # request() 先跳系統那個對話框（有「打開系統設定」按鈕），
+            # 再直接把設定頁開起來 —— 兩個都做，使用者不會迷路。
+            on_permission=lambda: (permission.request(), permission.open_settings()),
+            on_import=lambda: (welcome.accept(), open_import()),
+        )
+        welcome.exec()
 
     code = app.exec()
     stop_hotkey()
