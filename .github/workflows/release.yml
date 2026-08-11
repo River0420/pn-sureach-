@@ -8,9 +8,9 @@
 # 怎麼發一版：
 #   git tag v1.0 && git push origin v1.0
 #
-# 跑完之後固定網址（給下載頁面用，永遠指向最新版）：
-#   https://github.com/<你>/<repo>/releases/latest
+# 跑完之後的固定網址（給下載頁面用，永遠指向最新版）：
 #   https://github.com/<你>/<repo>/releases/latest/download/PN-Anywhere-Windows.zip
+#   https://github.com/<你>/<repo>/releases/latest/download/PN-Anywhere-macOS.zip
 #
 # 注意：private repo 的 Release 也是 private 的。要讓陌生人下載，repo 得公開。
 
@@ -26,14 +26,18 @@ permissions:
 
 env:
   APP: PN Anywhere
-  ZIP: PN-Anywhere-Windows.zip    # 檔名不放空白，網址才不會變成 %20
+  # 檔名不放空白，網址才不會變成 %20
+  ZIP_WIN: PN-Anywhere-Windows.zip
+  ZIP_MAC: PN-Anywhere-macOS.zip
 
 jobs:
+  # 兩個平台各自打包，最後由 release job 收攏成同一個 Release。
+  # 分開跑的好處：一邊掛了另一邊還是有東西可看，不用整輪重來。
+
   windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -71,44 +75,118 @@ jobs:
           if (-not (Test-Path "$out/$env:APP.exe")) { throw "沒有產生 exe" }
           # 壓資料夾本身，不要壓 "$out/*" —— 後者解開會把幾百個檔案
           # 直接倒進使用者的下載資料夾，找不到 exe 在哪
-          Compress-Archive -Path $out -DestinationPath $env:ZIP -Force
-          "{0:N1} MB" -f ((Get-Item $env:ZIP).Length / 1MB) | Write-Host
+          Compress-Archive -Path $out -DestinationPath $env:ZIP_WIN -Force
+          "Windows：{0:N1} MB" -f ((Get-Item $env:ZIP_WIN).Length / 1MB) | Write-Host
 
-      # 用內建的 gh，不引第三方 action —— 發布流程上的東西越少越好
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pack-windows
+          path: ${{ env.ZIP_WIN }}
+          retention-days: 1        # 只是給下一個 job 接手，不用留
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 安裝相依套件
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller
+
+      - name: 跑測試
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python tests/test_win.py
+          python tests/test_live.py
+          python tests/test_formats.py
+          python tests/test_dupes.py
+
+      - name: 打包成 .app
+        run: pyinstaller --noconfirm --clean packaging/macos.spec
+
+      # 一定要用 ditto 不要用 zip：.app 裡面有 symlink 和延伸屬性，
+      # 一般的 zip 壓完解開會壞掉，使用者只會看到「應用程式已損毀」。
+      - name: 壓成一包
+        run: |
+          test -d "dist/$APP.app" || { echo "沒有產生 .app"; exit 1; }
+          cp README.md "dist/README.md"
+          cp "docs/怎麼用.txt" "dist/怎麼用.txt"
+          ditto -c -k --sequesterRsrc --keepParent "dist/$APP.app" "$ZIP_MAC"
+          echo "macOS：$(du -h "$ZIP_MAC" | cut -f1)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pack-macos
+          path: ${{ env.ZIP_MAC }}
+          retention-days: 1
+
+  release:
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pack-*
+          merge-multiple: true
+
       - name: 建立 Release
-        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
-          $tag = if ($env:GITHUB_REF -like "refs/tags/*") {
-            $env:GITHUB_REF -replace "refs/tags/", ""
-          } else {
-            "dev-" + $env:GITHUB_SHA.Substring(0,7)
-          }
-          $notes = @"
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="dev-${GITHUB_SHA:0:7}"
+          fi
+          ls -lh *.zip
+
+          cat > notes.md <<EOF
           ## 下載
 
-          **[$env:ZIP](https://github.com/$env:GITHUB_REPOSITORY/releases/download/$tag/$env:ZIP)**
+          | | |
+          |---|---|
+          | **Windows** | [$ZIP_WIN](https://github.com/$REPO/releases/download/$TAG/$ZIP_WIN) |
+          | **macOS** | [$ZIP_MAC](https://github.com/$REPO/releases/download/$TAG/$ZIP_MAC) |
 
-          解壓到一個**新資料夾**，雙擊 ``$env:APP.exe``。不需要安裝 Python。
+          不需要安裝 Python，解壓就能用。
 
-          第一次開會跳「Windows 已保護您的電腦」——那是因為沒有付費的數位簽章。
+          ### Windows
+          解壓到一個**新資料夾**，雙擊 \`$APP.exe\`。
+          第一次會跳「Windows 已保護您的電腦」—— 那是因為沒有付費的數位簽章。
           點「其他資訊」→「仍要執行」。
+
+          ### macOS
+          解壓後把 \`$APP.app\` 拖進「應用程式」。
+          第一次要**右鍵 →「打開」**（直接雙擊會被系統擋下來），
+          同樣是因為沒有簽章。之後就能正常雙擊。
+          全域熱鍵需要「輔助使用」權限，程式會自己引導你去開。
 
           ## 怎麼用
 
-          1. 按 ``Shift + Alt + Space`` 叫出查詢視窗
+          1. 按 \`Shift + Alt + Space\`（mac 是 \`⌥⇧Space\`）叫出查詢視窗
           2. 打字就直接找，不用按 Enter
-          3. ``↑↓`` 選、``Enter`` 看完整資料、``esc`` 關掉
+          3. \`↑↓\` 選、\`Enter\` 看完整資料、\`← →\` 看同一料號的其他列、\`esc\` 關掉
 
-          第一次要先從工作列圖示 →「匯入 Price Book」把你的 Excel 放進來。
+          第一次要先從工作列／選單列圖示 →「匯入 Price Book」把你的 Excel 放進來。
+          資料只留在你自己的電腦，不會上傳到任何地方。
 
           ## 出問題
 
-          改開 ``$env:APP-診斷版.exe``，它會把每一步印在黑色視窗上。
-          或右鍵工作列圖示 →「診斷資訊…」→「複製全部」。
-          "@
-          gh release create $tag $env:ZIP `
-            --title "$env:APP $tag" `
-            --notes $notes `
+          Windows 改開 \`$APP-診斷版.exe\`，它會把每一步印在黑色視窗上。
+          兩個平台都可以：右鍵圖示 →「診斷資訊…」→「複製全部」。
+          EOF
+
+          gh release create "$TAG" *.zip \
+            --repo "$REPO" \
+            --title "$APP $TAG" \
+            --notes-file notes.md \
             --latest
