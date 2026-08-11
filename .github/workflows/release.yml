@@ -89,14 +89,19 @@ jobs:
     # macos-latest 是 Apple 晶片，打出來的執行檔是 arm64 專用的 ——
     # Intel Mac 拿到會完全無法啟動：沒有錯誤訊息、沒有圖示、什麼都沒有。
     # 使用者只會覺得「這東西是壞的」。所以兩種架構都要出。
+    # Intel 版暫時停掉：GitHub 唯一的 Intel Mac runner（macos-13）已經在
+    # 退役，實測排隊 24 分鐘連跑都沒開始，會把整個發布卡死（預設 6 小時
+    # 才逾時）。要恢復的話把下面那組取消註解，前提是那個 label 還排得到：
+    #   - runner: macos-13
+    #     arch: Intel
+    # 真正的長久解法是出 universal2（一個檔案同時支援兩種 CPU），
+    # 但那需要 universal2 的 Python 和所有套件的 universal2 wheel。
     strategy:
       fail-fast: false        # 一邊掛了另一邊還是要有東西可下載
       matrix:
         include:
           - runner: macos-latest    # Apple 晶片（M1 之後）
             arch: AppleSilicon
-          - runner: macos-13        # Intel
-            arch: Intel
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -183,7 +188,10 @@ jobs:
           |---|---|
           | **Windows** | [$ZIP_WIN](https://github.com/$REPO/releases/download/$TAG/$ZIP_WIN) |
           | **macOS**（Apple 晶片 M1～M4） | [$ZIP_MAC](https://github.com/$REPO/releases/download/$TAG/$ZIP_MAC) |
-          | **macOS**（Intel） | [$ZIP_MAC_INTEL](https://github.com/$REPO/releases/download/$TAG/$ZIP_MAC_INTEL) |
+
+          > **Intel Mac 目前不支援。** 這一版只能在 Apple 晶片上跑，
+          > Intel 機器下載後會完全沒有反應（不是壞掉，是 CPU 架構不同）。
+          > 不確定的話：左上角  →「關於這台 Mac」→ 看「晶片」那一行。
 
           不需要安裝 Python，解壓就能用。
 
@@ -191,8 +199,6 @@ jobs:
           解壓到一個**新資料夾**，雙擊 \`$APP.exe\`。
           第一次會跳「Windows 已保護您的電腦」—— 那是因為沒有付費的數位簽章。
           點「其他資訊」→「仍要執行」。
-
-          不確定自己是哪一種 Mac：左上角  →「關於這台 Mac」，看「晶片」那一行。
 
           ### macOS
           解壓後把 \`$APP.app\` 拖進「應用程式」再打開。
