@@ -179,8 +179,10 @@ print("\n[5] 註冊失敗 → 要有看得懂的錯誤")
 hw, user32 = load_hotkey_win(register_ok=False, last_error=1409)
 lis = hw.Listener(lambda: None, 0x20, ["alt"])
 check("start() 回 False", lis.start() is False)
-check("錯誤訊息說得出是被佔用", "已經被其他程式註冊走了" in lis.error, lis.error)
-check("錯誤訊息有指出解法", "settings.json" in lis.error)
+check("錯誤訊息說得出是被佔用", "被其他程式用走" in lis.error, lis.error)
+# 解法不再是「去改 settings.json」，而是選單裡的「設定快捷鍵…」——
+# 訊息只要指出「換一組」，怎麼換由那個視窗負責
+check("錯誤訊息有指出解法", "換一組" in lis.error)
 
 hw, _ = load_hotkey_win(register_ok=False, last_error=99999)
 lis = hw.Listener(lambda: None, 0x20, ["alt"])

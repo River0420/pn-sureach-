@@ -13,6 +13,7 @@ from core import applog, hotkey, local_lookup, paths, permission, plat, settings
 from core.local_lookup import LocalPriceBook
 from ui import appicon, native_window, popup as popup_mod, style
 from ui.diag_dialog import DiagDialog
+from ui.hotkey_dialog import HotkeyDialog
 from ui.import_dialog import ImportDialog
 from ui.welcome import WelcomeDialog
 from ui.popup import PopupWindow
@@ -182,7 +183,7 @@ def main():
                                  f"已重新載入 {rows:,} 筆資料",
                                  appicon.tray_icon(), 3000)
         else:
-            tray.setToolTip(f"{APP_NAME}　·　尚未匯入 Price Book")
+            tray.setToolTip(f"{APP_NAME}　·　尚未匯入資料")
 
         # 讀檔失敗過去是靜默 continue，使用者只看到「尚未匯入」卻不知道為什麼
         if snapshot.errors:
@@ -202,7 +203,7 @@ def main():
     def show_errors():
         native_window.activate_app()
         QMessageBox.warning(
-            None, "載入 Price Book 時有問題",
+            None, "載入 Excel 資料時有問題",
             "\n".join(state.get("errors", [])) + "\n\n可以從選單列重新匯入。")
 
     # ---------------- 查詢視窗 ----------------
@@ -266,21 +267,48 @@ def main():
         box = QMessageBox()
         box.setWindowTitle("熱鍵沒掛上")
         box.setIcon(QMessageBox.Warning)
-        box.setText(f"{hotkey.HOTKEY_LABEL} 現在不會有反應")
+        box.setText(f"{hotkey.HOTKEY_SPELLED} 現在不會有反應")
         box.setInformativeText(
             f"原因：{state.get('hotkey_error') or '不明'}\n\n"
             "在那之前，點工作列圖示 → 查詢，功能完全一樣。\n\n"
-            "要換一組熱鍵的話，關掉程式，打開 config/settings.json，改這兩行：\n"
-            '    "key": "space"          （可填 space / f2 / q …）\n'
-            '    "modifiers": ["alt"]    （ctrl / alt / shift / cmd）\n'
-            "存檔後重開程式。\n\n"
+            "多半是被別的常駐程式先搶走了。按下面的「換一組快捷鍵」，"
+            "可以當場試按確認新的那組能不能用，不用重開程式。\n\n"
             "詳細情況可以從選單的「診斷資訊…」複製給對方看。"
         )
         box.setStandardButtons(QMessageBox.Ok)
+        change_btn = box.addButton("換一組快捷鍵", QMessageBox.ActionRole)
+        box.setDefaultButton(change_btn)
         diag_btn = box.addButton("看診斷資訊", QMessageBox.ActionRole)
         box.exec()
-        if box.clickedButton() is diag_btn:
+        if box.clickedButton() is change_btn:
+            open_hotkey_settings()
+        elif box.clickedButton() is diag_btn:
             open_diag()
+
+    def open_hotkey_settings():
+        """換一組熱鍵
+
+        視窗裡的「試按看看」會暫時把這一組掛上去，所以一定要先把主監聽
+        停掉再讓它試 —— 否則在 Windows 上拿同一組去試會撞到自己。
+        """
+        native_window.activate_app()
+        dlg = HotkeyDialog(on_pause=stop_hotkey, on_resume=start_hotkey)
+        dlg.raise_()
+        dlg.activateWindow()
+        if dlg.exec() != HotkeyDialog.Accepted or not dlg.chosen:
+            return False
+        mods, key = dlg.chosen
+        hotkey.save(key, mods)
+        start_hotkey()              # 立刻生效，不用重開程式
+        refresh_hotkey_labels()
+        print(f"快捷鍵改成 {hotkey.HOTKEY_LABEL}", flush=True)
+        return True
+
+    def refresh_hotkey_labels():
+        """熱鍵一改，畫面上寫著舊組合的地方都要跟上"""
+        act_query.setText(f"查詢          {hotkey.HOTKEY_LABEL}")
+        if popup.isVisible():
+            popup.show_placeholder()
 
     def open_diag():
         native_window.activate_app()
@@ -301,13 +329,13 @@ def main():
         box = QMessageBox()
         box.setWindowTitle("需要「輔助使用」權限")
         box.setIcon(QMessageBox.Warning)
-        box.setText(f"{hotkey.HOTKEY_LABEL} 熱鍵現在不會有反應")
+        box.setText(f"{hotkey.HOTKEY_SPELLED} 熱鍵現在不會有反應")
         box.setInformativeText(
             f"請到 系統設定 → 隱私權與安全性 → 輔助使用，把 {target} 打開。\n\n"
             "（macOS 的權限是記在「啟動這個程式的那個 App」身上，不是記在程式本身，"
             f"所以這次要開的是 {target}。換一種方式啟動就得再給一次。）\n\n"
             "打開之後不用重開，程式會自己接上。\n"
-            "在那之前，點選單列的橘色 P 圖示 → 查詢，一樣可以用。"
+            "在那之前，點選單列的黑色晶片圖示 → 查詢，一樣可以用。"
         )
         box.setStandardButtons(QMessageBox.Ok)
         open_btn = box.addButton("打開系統設定", QMessageBox.ActionRole)
@@ -386,13 +414,16 @@ def main():
     act_error.triggered.connect(show_errors)
     act_error.setVisible(False)
     menu.addAction(act_error)
-    act_import = QAction("匯入 Price Book…", menu)
+    act_import = QAction("匯入 Excel 資料…", menu)
     act_import.triggered.connect(open_import)
     menu.addAction(act_import)
     act_reload = QAction("重新載入", menu)
     act_reload.triggered.connect(lambda: load_book(announce=True))
     menu.addAction(act_reload)
     menu.addSeparator()
+    act_hotkey_set = QAction("設定快捷鍵…", menu)
+    act_hotkey_set.triggered.connect(open_hotkey_settings)
+    menu.addAction(act_hotkey_set)
     act_diag = QAction("診斷資訊…", menu)
     act_diag.triggered.connect(open_diag)
     menu.addAction(act_diag)
@@ -443,6 +474,7 @@ def main():
             # 再直接把設定頁開起來 —— 兩個都做，使用者不會迷路。
             on_permission=lambda: (permission.request(), permission.open_settings()),
             on_import=lambda: (welcome.accept(), open_import()),
+            on_hotkey=open_hotkey_settings,
         )
         welcome.exec()
 

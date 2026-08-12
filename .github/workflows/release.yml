@@ -61,6 +61,8 @@ jobs:
           python tests/test_live.py
           python tests/test_formats.py
           python tests/test_dupes.py
+          python tests/test_hotkey_set.py
+          python tests/test_hotkey_probe.py
 
       - name: 打包
         run: pyinstaller --noconfirm --clean packaging/windows.spec
@@ -124,6 +126,8 @@ jobs:
           python tests/test_live.py
           python tests/test_formats.py
           python tests/test_dupes.py
+          python tests/test_hotkey_set.py
+          python tests/test_hotkey_probe.py
 
       - name: 打包成 .app
         run: pyinstaller --noconfirm --clean packaging/macos.spec

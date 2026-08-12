@@ -432,7 +432,7 @@ class ImportDialog(QDialog):
         self._user_touched = False
         self._redraw_pending = False
 
-        self.setWindowTitle("匯入 Price Book")
+        self.setWindowTitle("匯入 Excel 資料")
         self.setStyleSheet(style.DIALOG_QSS)
         self.setAcceptDrops(True)
         self._build()
@@ -462,7 +462,7 @@ class ImportDialog(QDialog):
         root.setContentsMargins(28, 24, 28, 20)
         root.setSpacing(0)
 
-        root.addWidget(QLabel("匯入 Price Book", objectName="dlgTitle"))
+        root.addWidget(QLabel("PN Anywhere", objectName="dlgTitle"))
         root.addSpacing(4)
         root.addWidget(QLabel(
             f"最多 {MAX_SOURCES} 個檔案，用彼此共用的料號欄位串成同一張查詢卡",

@@ -235,7 +235,7 @@ class PopupWindow(QWidget):
         self.grab()          # 真的畫一次，字體與樣式才會在此刻解析完
         self._enter_detail()
         self.grab()
-        self.show_message("查無「WARMUP」", "errorTitle", "本地 Price Book 沒有這筆料號")
+        self.show_message("查無「WARMUP」", "errorTitle", "你匯入的資料裡沒有這筆料號")
         self.grab()
         self.show_placeholder()
         self.grab()
@@ -265,11 +265,11 @@ class PopupWindow(QWidget):
         if status == local_lookup.STATUS_LOADING:
             return self.show_message("資料載入中…", "hint")
         if status == local_lookup.STATUS_ERROR:
-            return self.show_message("Price Book 載入失敗", "errorTitle",
+            return self.show_message("資料載入失敗", "errorTitle",
                                      message or "請重新匯入")
         if status == local_lookup.STATUS_EMPTY:
-            return self.show_message("尚未匯入 Price Book", "errorTitle",
-                                     "點選單列圖示 → 匯入 Price Book")
+            return self.show_message("尚未匯入資料", "errorTitle",
+                                     "點選單列圖示 → 匯入 Excel 資料")
         return self.show_message("打字就直接找　·　↑↓ 選　·　return 看完整資料", "hint")
 
     def show_results(self, results):
@@ -340,7 +340,7 @@ class PopupWindow(QWidget):
 
         if not results:
             return self.show_message(f"查無「{text}」", "errorTitle",
-                                     "本地 Price Book 沒有相近的料號")
+                                     "你匯入的資料裡沒有相近的料號")
         self.show_results(results)
 
     # ---------- 操作 ----------

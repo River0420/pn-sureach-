@@ -40,7 +40,7 @@ _FLAGS = {"alt": MOD_ALT, "ctrl": MOD_CONTROL, "shift": MOD_SHIFT, "cmd": MOD_WI
 # RegisterHotKey 失敗時 GetLastError 的常見值，翻成看得懂的話。
 # 這是使用者在公司電腦上最可能踩到的一關，訊息要能直接指向解法。
 _ERRORS = {
-    1409: "這組熱鍵已經被其他程式註冊走了（換一組，改 config/settings.json 的 hotkey）",
+    1409: "這組快捷鍵已經被其他程式用走了（換一組）",
     1400: "視窗代號無效",
     5: "被系統拒絕（權限不足，或有防護軟體擋下）",
     87: "熱鍵參數不正確",

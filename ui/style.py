@@ -384,6 +384,25 @@ QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
     font-weight: 600;
     color: {DANGER};
 }}
+/* 設定快捷鍵：按什麼就顯示什麼的大方框。字要夠大，⌥⇧ 這種符號才看得清楚 */
+#recorder {{
+    font-size: 25px;
+    font-weight: 600;
+    color: {TEXT};
+    background: {SURFACE};
+    border: 2px solid {BORDER};
+    border-radius: 10px;
+    padding: 14px;
+}}
+#recorder:focus {{
+    border-color: {ACCENT};
+}}
+/* 符號的中文說法，永遠跟在大方框底下 */
+#recorderSpelled {{
+    font-size: 13px;
+    font-weight: 600;
+    color: {TEXT_SOFT};
+}}
 #linkBtn {{
     border: none;
     background: transparent;

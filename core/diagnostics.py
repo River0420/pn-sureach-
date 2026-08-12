@@ -120,7 +120,7 @@ def report(price_book=None, hotkey_state=None):
     add = L.append
 
     add("=" * 52)
-    add("料號查詢小工具　診斷報告")
+    add(f"{paths.APP_NAME}　診斷報告")
     add(time.strftime("產生時間　%Y-%m-%d %H:%M:%S"))
     add("=" * 52)
 
@@ -153,7 +153,7 @@ def report(price_book=None, hotkey_state=None):
         add(_row("目前狀態", "已掛上 ✓"))
     else:
         add(_row("目前狀態", f"沒掛上 ⚠　{hotkey_state.get('error') or '原因不明'}"))
-        add(_row("解法", "改 config/settings.json 的 hotkey.key / hotkey.modifiers"))
+        add(_row("解法", "選單列圖示 →「設定快捷鍵…」換一組（可以當場試按確認）"))
 
     add("")
     add("【權限】")

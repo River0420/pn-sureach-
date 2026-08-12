@@ -53,6 +53,19 @@ KEYS = {
 # 反查：macOS 鍵碼 → 名稱（給舊設定檔和顯示用）
 _BY_MAC = {mac: name for name, (mac, _) in KEYS.items()}
 
+# 反查：當下平台的原生鍵碼 → 名稱。錄熱鍵時用得到 ——
+# Qt 給的 event.key() 會被鍵盤配置和 option 的死鍵影響（⌥⇧Q 在某些配置下
+# 拿到的不是 Key_Q），原生鍵碼不會。
+# 別名（enter/escape/backspace）用 setdefault 讓正式名稱先佔位。
+_BY_NATIVE = {}
+for _name, (_mac, _win) in KEYS.items():
+    _BY_NATIVE.setdefault(_mac if MACOS else _win, _name)
+
+
+def key_from_native(code):
+    """原生鍵碼 → 按鍵名稱；不在支援清單裡就回 None"""
+    return _BY_NATIVE.get(code)
+
 
 def key_name(value, default="space"):
     """把設定檔裡的值正規化成按鍵名稱
@@ -94,3 +107,20 @@ def describe(key, mods):
     if MOD_JOIN:
         return MOD_JOIN.join(parts + [label])
     return "".join(parts) + label
+
+
+# macOS 的 ⌥⇧ 這種符號，不是每個人都認得 —— 尤其 ⌥ 常被念成「那個像鐵軌的」。
+# 說明性的畫面要把字拼出來，順序跟符號一模一樣，才對得起來。
+# Windows 本來就寫 Alt+Shift+Space，不用再翻一次。
+SPELLED_MODS = {"ctrl": "control", "alt": "option", "shift": "shift", "cmd": "command"}
+SPELLED_KEYS = {"space": "空白鍵", "return": "Enter", "enter": "Enter",
+                "tab": "Tab", "esc": "Esc", "escape": "Esc",
+                "delete": "Delete", "backspace": "Backspace"}
+
+
+def spell(key, mods):
+    """把熱鍵拼成中文說法；不需要（Windows）就回空字串"""
+    if not MACOS:
+        return ""
+    label = SPELLED_KEYS.get(key) or (key.upper() if len(key) == 1 else key.capitalize())
+    return " + ".join([SPELLED_MODS[m] for m in mods] + [label])
