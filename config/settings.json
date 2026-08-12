@@ -1,7 +1,7 @@
 {
   "version": 1,
   "hotkey": {
-    "keycode": 49,
+    "key": "space",
     "modifiers": [
       "alt"
     ],
@@ -18,6 +18,7 @@
     "radius": 14,
     "shadow": "native",
     "field_label_width": 92,
+    "source_badge": "",
     "prefill_max_chars": 64,
     "divider_gap_top": 14,
     "divider_gap_bottom": 16,
@@ -59,6 +60,7 @@
     "max_sources": 3,
     "max_rows_per_source": 0,
     "warn_rows": 300000,
+    "header_scan_rows": 12,
     "result_limit": 6,
     "search_min_len": 1,
     "substring_min_len": 2,

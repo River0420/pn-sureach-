@@ -319,6 +319,9 @@ def main():
                 "ok": bool(listener and listener.ok),
                 "error": state.get("hotkey_error", ""),
                 "label": hotkey.HOTKEY_LABEL,
+                # macOS 會因為回呼太慢把 event tap 停用，看門狗再把它開回來。
+                # 這個數字大，代表使用者正在踩「有時候按了沒反應」那個坑。
+                "revived": getattr(listener, "revived", 0),
             },
         ).exec()
 

@@ -124,5 +124,37 @@ else:
     print("  （掛不上，跳過）")
 dlg2._stop_test()
 
+print("\n[4] 看門狗：tap 被系統停用要自己救回來")
+# macOS 對「會吃掉按鍵」的 event tap 有逾時限制，回呼太慢就整個停用。
+# 使用者的體感是「有時候會、有時候不會」—— 這一段就是在守那個。
+if plat.MACOS:
+    from Quartz import CGEventTapEnable, CGEventTapIsEnabled
+    hits2 = []
+    lis = hotkey.probe(KEY, MODS, lambda: hits2.append(1))
+    if not lis.ok:
+        print("  （掛不上，跳過）")
+    else:
+        send_hotkey(MODS, KEY); pump(0.6)
+        check("停用前按得到", len(hits2) == 1, str(len(hits2)))
+
+        CGEventTapEnable(lis.tap, False)          # 模擬系統把它關掉
+        check("確實被停用了", CGEventTapIsEnabled(lis.tap) is False)
+
+        for _ in range(40):                       # 看門狗一秒一輪
+            pump(0.1)
+            if CGEventTapIsEnabled(lis.tap):
+                break
+        check("看門狗把它開回來了", CGEventTapIsEnabled(lis.tap) is True)
+        check("有記下救回次數（診斷報告會印）", lis.revived >= 1, str(lis.revived))
+
+        before = len(hits2)
+        send_hotkey(MODS, KEY); pump(0.6)
+        check("救回來之後熱鍵還能用", len(hits2) > before,
+              f"{before} → {len(hits2)}")
+    lis.stop()
+    check("stop() 之後執行緒收乾淨", lis._thread is None)
+else:
+    print("  （Windows 用 RegisterHotKey，沒有這個問題）")
+
 print(f"\n===== {PASS} 過 / {FAIL} 失敗 =====")
 sys.exit(1 if FAIL else 0)

@@ -151,6 +151,14 @@ def report(price_book=None, hotkey_state=None):
         add(_row("目前狀態", "（不知道，程式沒把狀態傳進來）"))
     elif hotkey_state.get("ok"):
         add(_row("目前狀態", "已掛上 ✓"))
+        revived = hotkey_state.get("revived", 0)
+        if revived:
+            # 這一行是在回答「為什麼有時候按了沒反應」。
+            # macOS 對會吃掉按鍵的 event tap 有逾時限制，回呼太慢就整個停用；
+            # 程式每秒檢查一次再開回來，但被停用的那段時間按的鍵是真的丟了。
+            add(_row("被系統停用又救回", f"{revived} 次 ⚠"))
+            add(_row("這代表什麼", "偶爾按了沒反應是這個造成的，"
+                                   "被停用的那一兩秒內按的鍵會漏掉"))
     else:
         add(_row("目前狀態", f"沒掛上 ⚠　{hotkey_state.get('error') or '原因不明'}"))
         add(_row("解法", "選單列圖示 →「設定快捷鍵…」換一組（可以當場試按確認）"))

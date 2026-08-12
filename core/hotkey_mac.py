@@ -18,8 +18,10 @@ try:
         CFMachPortCreateRunLoopSource,
         CFRunLoopAddSource,
         CFRunLoopGetCurrent,
-        CFRunLoopRun,
+        CFRunLoopRunInMode,
         CFRunLoopStop,
+        CGEventTapIsEnabled,
+        kCFRunLoopDefaultMode,
         CGEventGetFlags,
         CGEventGetIntegerValueField,
         CGEventMaskBit,
@@ -65,6 +67,10 @@ _FLAGS = {
 
 UNAVAILABLE_REASON = "找不到 Quartz（pyobjc-framework-Quartz 沒裝好）"
 
+# 看門狗多久檢查一次 tap 還活著。挑一秒是因為使用者對「按了沒反應」的忍耐
+# 大概就是按第二下的時間；再久他就會覺得這程式壞了。
+WATCHDOG_SECONDS = 1.0
+
 
 def modifier_mask(mods):
     mask = 0
@@ -83,9 +89,11 @@ class Listener:
         self.tap = None
         self.ok = False
         self.error = ""
+        self.revived = 0           # 被系統停用後救回來幾次（診斷報告會印）
         self._thread = None
         self._runloop = None
         self._source = None
+        self._running = False
 
     def matches(self, event_type, event):
         if event_type not in (kCGEventKeyDown, kCGEventKeyUp):
@@ -96,11 +104,14 @@ class Listener:
         return (CGEventGetFlags(event) & MOD_MASK) == self.modifiers
 
     def _handler(self, proxy, event_type, event, refcon):
-        # 系統偶爾會把 tap 關掉（逾時或使用者操作），要自己開回來
+        # 系統把 tap 關掉時會送這個進來。第一時間開回去 ——
+        # 但不能只靠這一招，因為這個通知要等下一個事件才送得到，
+        # 那一下按鍵已經白按了。真正的保險是 _run() 裡的看門狗。
         if event_type in (kCGEventTapDisabledByTimeout,
                           kCGEventTapDisabledByUserInput):
             if self.tap is not None:
                 CGEventTapEnable(self.tap, True)
+                self.revived += 1
             return event
 
         if not self.matches(event_type, event):
@@ -131,7 +142,30 @@ class Listener:
         CGEventTapEnable(self.tap, True)
         self._source = source      # 留著參考，不要被回收
         self.ok = True
-        CFRunLoopRun()
+        self._running = True
+
+        # 不用 CFRunLoopRun()，改成一秒一輪，每輪順便看 tap 還活著沒有。
+        #
+        # 為什麼一定要有這個看門狗：這是一個「主動型」tap（會吃掉熱鍵），
+        # 系統對它有逾時限制 —— 回呼太慢就直接把整個 tap 停用。而這個回呼
+        # 是 Python，全系統每一次按鍵都要進來跑一次、都要搶 GIL。主執行緒
+        # 一忙（畫查詢視窗、解析 Excel），回呼就可能來不及回，tap 就被關掉。
+        #
+        # 只靠 _handler 裡那段補救不夠：停用通知要等「下一個事件」才送得到，
+        # 那一下按鍵就白按了。使用者的體感就是「有時候會、有時候不會」。
+        #
+        # 看門狗一定要跑在這條執行緒上，不能掛在 Qt 的計時器 ——
+        # 會卡住的正是主執行緒，救兵不能跟傷患關在同一間房裡。
+        while self._running:
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, WATCHDOG_SECONDS, False)
+            if not self._running or self.tap is None:
+                break
+            try:
+                if not CGEventTapIsEnabled(self.tap):
+                    CGEventTapEnable(self.tap, True)
+                    self.revived += 1
+            except Exception:
+                pass
         self.ok = False
 
     def start(self):
@@ -151,6 +185,7 @@ class Listener:
         熱鍵按一次就會跳兩次視窗。
         """
         self.ok = False
+        self._running = False      # 讓看門狗那個迴圈自己走完
         try:
             if self.tap is not None:
                 CGEventTapEnable(self.tap, False)
