@@ -180,7 +180,7 @@ check("復原成功", hotkey.KEY == before_key and hotkey.MODIFIERS == before_mo
 print("\n[11] 引導視窗：快捷鍵排在匯入前面")
 from ui.welcome import WelcomeDialog                            # noqa: E402
 w = WelcomeDialog(needs_permission=False, on_hotkey=lambda: False)
-titles = [step.wrapped[0][0].text() for step in w._steps]
+titles = [step.wrapped[0].text() for step in w._steps]
 hot = next(i for i, t in enumerate(titles) if "叫出查詢視窗" in t)
 imp = next(i for i, t in enumerate(titles) if "匯入" in t)
 check("快捷鍵那一步在匯入前面", hot < imp, " / ".join(titles))
@@ -198,9 +198,9 @@ def fake_change():
 w2 = WelcomeDialog(needs_permission=False, on_hotkey=fake_change)
 try:
     w2._change_hotkey()
-    title = w2.hotkey_step.wrapped[0][0].text()
+    title = w2.hotkey_step.wrapped[0].text()
     check("標題換成新的組合", plat.describe("f2", ["ctrl", "shift"]) in title, title)
-    detail = w2.hotkey_step.wrapped[1][0].text()
+    detail = w2.hotkey_step.wrapped[1].text()
     if plat.MACOS:
         check("說明也重拼了", "control + shift + F2" in detail, detail)
 finally:
@@ -238,6 +238,38 @@ check("錄鍵按住的當下也拼出來",
       d.spelled.text())
 check("大方框同時顯示符號", d.recorder.text() == "⌥⇧" if plat.MACOS else True,
       d.recorder.text())
+
+print("\n[16] 引導視窗：說明文字不能被裁掉")
+# 這個 bug 我犯過兩次，兩次都是「自己算可用寬度」算錯（忘了 layout 預設
+# 的 9px 邊界、量到的不是最終寬度）。症狀是最後一行不見或跟下一列疊在一起，
+# 而且只有文字夠長時才看得出來 —— 剛好就是文案寫得比較完整的時候。
+# 正解是 sizePolicy.setHeightForWidth(True)，讓 Qt 自己算。
+from PySide6.QtWidgets import QLabel                              # noqa: E402
+
+w4 = WelcomeDialog(needs_permission=True, on_hotkey=lambda: False)
+w4.show()
+app.processEvents()
+for step in w4._steps:
+    for label in step.wrapped:
+        need = label.heightForWidth(label.width())
+        check(f"「{label.text()[:14]}…」放得下（{label.width()}px 寬要 {need}px 高）",
+              label.height() >= need, f"實際只有 {label.height()}px")
+        policy = label.sizePolicy()
+        check("  └ 有宣告 heightForWidth", policy.hasHeightForWidth())
+
+# 換一組更長的熱鍵名稱，文字會變長，一樣不能被裁
+before2 = (hotkey.KEY, list(hotkey.MODIFIERS))
+try:
+    hotkey.save("f12", ["ctrl", "alt", "shift", "cmd"])
+    w5 = WelcomeDialog(needs_permission=True, on_hotkey=lambda: False)
+    w5.show()
+    app.processEvents()
+    label = w5.hotkey_step.wrapped[1]
+    check("熱鍵名稱變長之後也放得下",
+          label.height() >= label.heightForWidth(label.width()),
+          f"{label.height()} vs {label.heightForWidth(label.width())}")
+finally:
+    hotkey.save(before2[0], before2[1])
 
 print(f"\n===== {PASS} 過 / {FAIL} 失敗 =====")
 sys.exit(1 if FAIL else 0)

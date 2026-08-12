@@ -24,29 +24,24 @@ from ui import appicon, style
 
 
 WIDTH = 470          # 固定寬度，換行結果才可預測
-_MARGIN_X = 30
-_BADGE_W, _GAP = 26, 12
-_BUTTON_ROOM = 86    # 「去開啟」「匯入」那一顆的寬度
-
-
-def _text_width(has_button):
-    """說明文字實際拿得到多少寬 —— 算出來，不要用猜的"""
-    room = WIDTH - 2 * _MARGIN_X - _BADGE_W - _GAP
-    return room - (_BUTTON_ROOM + _GAP) if has_button else room
 
 
 def _hotkey_detail():
     """macOS 的 ⌥⇧ 沒人認得，要拼出來；Windows 的 Alt+Shift+Space 本來就讀得懂"""
     spelled = plat.spell(hotkey.KEY, hotkey.MODIFIERS)
     prefix = f"也就是 {spelled}。" if spelled else ""
-    return (f"{prefix}在任何軟體裡都能按，打字就直接找，"
-            "不用按 Enter，查完按 esc 關掉。")
+    # 剪貼簿預填是這個程式最省時間的一招，但它完全看不出來 ——
+    # 沒講的話使用者只會乖乖地「按熱鍵、打字」，慢一倍。
+    return (f"{prefix}在任何軟體裡都能按。"
+            "先把料號複製起來再按，它會自動填好、直接把答案查出來；"
+            "沒複製也行，按了打字就開始找。查完按 esc 關掉。")
 
 
 def _step(number, title, detail, button=None, on_click=None):
     """一列：編號、說明、（可選的）動作按鈕"""
     row = QHBoxLayout()
     row.setSpacing(12)
+    row.setContentsMargins(0, 0, 0, 0)     # 預設有 9px 邊界，會偷走文字的寬度
 
     badge = QLabel(str(number), objectName="stepBadge")
     badge.setFixedSize(26, 26)
@@ -55,17 +50,22 @@ def _step(number, title, detail, button=None, on_click=None):
 
     text = QVBoxLayout()
     text.setSpacing(2)
-    # 自動換行的 QLabel 預設的 sizeHint 不含換行後的高度，放進巢狀 layout
-    # 會被壓扁成一行，第二行就疊上去了。真正的高度等視窗建好、樣式套過
-    # 之後再由 _fix_wrapped_heights() 算 —— 在這裡問會用到還沒套 QSS 的字體。
-    avail = _text_width(bool(button))
+    # 自動換行的 QLabel 預設的 sizeHint 只有一行高，放進巢狀 layout 會被壓扁，
+    # 後面的行就被裁掉。正解是讓 sizePolicy 明講「我的高度由寬度決定」——
+    # QVBoxLayout 只有在這個旗標打開時才會去問 heightForWidth()。
+    #
+    # 我先前試過「自己算可用寬度、再 setMinimumHeight」，錯了兩次：
+    # 一次忘了 layout 預設有 9px 邊界，一次量到的寬度不是最終寬度。
+    # 只要是自己算的就會有算錯的一天，交給 Qt 算。
     wrapped = []
     for widget, name in ((QLabel(title), "stepTitle"), (QLabel(detail), "stepDetail")):
         widget.setObjectName(name)
         widget.setWordWrap(True)
-        widget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.MinimumExpanding)
+        policy = QSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        policy.setHeightForWidth(True)
+        widget.setSizePolicy(policy)
         text.addWidget(widget)
-        wrapped.append((widget, avail))
+        wrapped.append(widget)
     row.addLayout(text, 1)
 
     if button:
@@ -78,6 +78,12 @@ def _step(number, title, detail, button=None, on_click=None):
 
     holder = QWidget()
     holder.setLayout(row)
+    # 外層的 QVBoxLayout 是去問 holder 要多高，不是去問裡面的 label。
+    # holder 沒宣告 heightForWidth 的話，外層只會拿到「一行」的 sizeHint，
+    # 裡面的 label 講得再清楚也沒用 —— 這一層漏掉就整段前功盡棄。
+    holder_policy = QSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+    holder_policy.setHeightForWidth(True)
+    holder.setSizePolicy(holder_policy)
     holder.wrapped = wrapped
     return holder
 
@@ -161,22 +167,44 @@ class WelcomeDialog(QDialog):
         layout.addSpacing(14)
         layout.addWidget(foot)
 
-        # 樣式套過之後才量得到真正的字體，這時候換行高度才算得準
-        self.ensurePolished()
         self._steps = steps
+        self.adjustSize()
+
+    def showEvent(self, event):
+        """真正的高度只有在視窗顯示出來、寬度分配完之後才量得準
+
+        heightForWidth 的 sizePolicy 在這種「QVBoxLayout 包 QWidget 包
+        QHBoxLayout 包 QVBoxLayout 包 QLabel」的巢狀結構裡傳不上去，
+        外層拿到的還是一行的 sizeHint。所以宣告完還要在這裡補一刀：
+        等寬度發下來，問每個 label 這個寬度要多高，不夠就撐開。
+
+        放在 showEvent 而不是 __init__，是因為 __init__ 時 width() 還不是
+        最終值 —— 我在那裡量過兩次，兩次都量錯，兩次都裁掉最後一行。
+        """
+        super().showEvent(event)
         self._fix_heights()
 
     def _fix_heights(self):
+        self.layout().activate()
+        grew = False
         for step in self._steps:
-            for widget, avail in step.wrapped:
-                widget.ensurePolished()
-                widget.setMinimumHeight(widget.heightForWidth(avail))
+            for label in step.wrapped:
+                width = label.width()
+                if width <= 1:
+                    continue
+                need = label.heightForWidth(width)
+                if label.minimumHeight() < need:
+                    label.setMinimumHeight(need)
+                    grew = True
+        if grew:
+            self.layout().activate()
+            self.adjustSize()
 
     def _change_hotkey(self):
         """開設定快捷鍵的視窗；換好了就把這一列的字換掉"""
         if not self._on_hotkey or not self._on_hotkey():
             return
-        title, detail = (w for w, _ in self.hotkey_step.wrapped)
+        title, detail = self.hotkey_step.wrapped
         title.setText(f"用 {hotkey.HOTKEY_LABEL} 叫出查詢視窗")
         detail.setText(_hotkey_detail())
         self._fix_heights()
