@@ -33,6 +33,13 @@ python3 main.py
 第一次啟動需要「輔助使用」權限（全域熱鍵要用）。程式會自己引導你去開，
 開完不用重開，兩秒內會自動接上。
 
+預設熱鍵是 `⌥⇧Space`（Windows 上是 `Alt+Shift+Space`）。要換的話
+選單列圖示 →「設定快捷鍵…」，可以點現成的、也可以自己按一組錄下來。
+按「試按看看」會真的把那組掛上去請你按一次 —— 有反應才算數。
+Windows 上這一步還能直接抓到「被別的程式註冊走了」；macOS 沒有註冊
+這回事（我們是監聽全部鍵盤事件），系統無法回答衝突，所以真的按一次
+是唯一可靠的證據。
+
 ---
 
 ## 微調畫面與行為
@@ -54,7 +61,7 @@ python3 main.py
 | 視窗出現位置 | `window.anchor`：`top-right` / `top-left` / `top-center` / `center` |
 | 配色 | `theme.bg` / `text` / `accent` … |
 | 字級 | `theme.*_size`（`base_size` 是 pt，其餘是 px） |
-| 熱鍵 | `hotkey.key`（`space`/`f2`/`q`…）+ `hotkey.modifiers`（`ctrl`/`alt`/`shift`/`cmd`，Windows 上 `cmd` = Win 鍵） |
+| 熱鍵 | 用「設定快捷鍵…」改就好。真要手改是 `hotkey.key`（`space`/`f2`/`q`…）+ `hotkey.modifiers`（`ctrl`/`alt`/`shift`/`cmd`，Windows 上 `cmd` = Win 鍵） |
 | 最多幾個來源檔 | `data.max_sources`（上限 5） |
 | 資料筆數上限 | `data.max_rows_per_source`（0 = 不限） |
 | 關掉 Excel 解析快取 | `data.cache: false` |
