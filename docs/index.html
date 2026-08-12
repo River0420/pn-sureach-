@@ -98,6 +98,28 @@ ol.steps b{color:var(--text); font-weight:600}
 }
 .note b{color:var(--text)}
 
+/* 下載按鈕正下方的警告。放這裡是因為使用者按完下載就走了，
+   捲不到下面那段說明 —— 實測本人就這樣踩了一次。 */
+.firstrun{
+  max-width:640px; margin:22px auto 0; text-align:left;
+  background:var(--surface); border:1px solid var(--accent);
+  border-radius:12px; padding:18px 22px; font-size:14.2px; color:var(--soft);
+}
+.firstrun .hd{
+  color:var(--text); font-weight:700; font-size:15.5px;
+  display:flex; align-items:center; gap:8px; margin-bottom:4px;
+}
+.firstrun .sub{font-size:13.2px; color:var(--muted); margin-bottom:12px}
+.firstrun ol{margin:0; padding-left:20px}
+.firstrun li{margin:7px 0; line-height:1.6}
+.firstrun li b{color:var(--text)}
+.firstrun .warn{color:var(--accent); font-weight:600}
+.firstrun .os{
+  display:inline-block; font-size:11.5px; font-weight:700; letter-spacing:.04em;
+  color:var(--muted); border:1px solid var(--border); border-radius:5px;
+  padding:1px 7px; margin:14px 0 6px;
+}
+
 footer{
   margin-top:76px; padding:28px 0 56px; border-top:1px solid var(--border-soft);
   text-align:center; color:var(--muted); font-size:13.5px;
@@ -158,6 +180,32 @@ footer a{color:var(--soft)}
     <span class="lines"><span class="top">下載 macOS 版</span>
       <span class="sub">.zip　·　Apple 晶片（M1～M4）</span></span>
   </a>
+</div>
+
+<div class="firstrun">
+  <div class="hd">⚠︎　第一次打開一定會被系統擋下來</div>
+  <div class="sub">
+    這是因為程式沒有買數位簽章（Apple US$99／年、Windows US$200／年），
+    不是程式有問題。下面四步做完就不會再遇到。
+  </div>
+
+  <div class="os">macOS</div>
+  <ol>
+    <li>跳出「Apple 無法驗證⋯」時，按 <b>完成</b>
+      <span class="warn">（千萬不要按「丟到垃圾桶」）</span></li>
+    <li>打開 <b>系統設定</b> →「<b>隱私權與安全性</b>」</li>
+    <li>捲到<b>最下面</b>的「安全性」區塊 →「<b>仍要打開</b>」</li>
+    <li>再確認一次，輸入密碼或 Touch ID</li>
+  </ol>
+  <div class="sub" style="margin:10px 0 0">
+    「仍要打開」只在你剛剛試著開啟之後約一小時內出現。不見了就再雙擊一次 App。<br>
+    Sequoia 之後<b>右鍵「打開」已經沒用了</b>，只有這條路。
+  </div>
+
+  <div class="os">Windows</div>
+  <ol>
+    <li>跳出藍色的「Windows 已保護您的電腦」→ 點「<b>其他資訊</b>」→「<b>仍要執行</b>」</li>
+  </ol>
 </div>
 
 <p class="under">
@@ -222,27 +270,17 @@ footer a{color:var(--soft)}
   </ol>
 
   <div class="note">
-    <b>第一次開一定會被系統擋下來，這是正常的。</b>
-    因為這個程式沒有買數位簽章（Windows 約 US$200／年、Apple US$99／年），
-    不是程式有問題。
-
-    <div style="margin-top:14px">
-      <b>Windows</b><br>
-      跳出「Windows 已保護您的電腦」→ 點「<b>其他資訊</b>」→「<b>仍要執行</b>」。
-    </div>
-
-    <div style="margin-top:12px">
-      <b>macOS</b>（Sequoia 之後右鍵「打開」已經沒用了，要走這條）<br>
-      ① 跳出「Apple 無法驗證⋯」時，按「<b>完成</b>」<span style="color:var(--accent)">
-      （不要按丟到垃圾桶）</span><br>
-      ② 打開「系統設定」→「<b>隱私權與安全性</b>」<br>
-      ③ 捲到最下面的「安全性」區塊，會看到本程式被阻擋 → 按「<b>仍要打開</b>」<br>
-      ④ 再確認一次，輸入密碼或 Touch ID
-    </div>
+    <b>第一次開會被系統擋下來 —— 上面下載按鈕底下那四步就是在講這個。</b>
+    macOS 走「系統設定 →隱私權與安全性 → 最下面的『仍要打開』」，
+    Windows 是「其他資訊 → 仍要執行」。
 
     <div style="margin-top:12px">
       <b>macOS 還要多開一個權限</b>：全域熱鍵需要「輔助使用」。
-      程式第一次啟動時會自己跳出來引導你，跟著按就好。
+      程式第一次啟動時會自己跳出來引導你，跟著按就好。<br>
+      <b>更新到新版之後如果熱鍵突然不動了</b>，到「隱私權與安全性 → 輔助使用」，
+      把清單裡的 PN Anywhere <b>選起來按「−」移除</b>（不是關掉開關），
+      再重開程式重新授權一次。原因是這個程式沒有付費簽章，
+      每次改版簽章都會變，舊的授權記錄會對不上。
     </div>
   </div>
 
